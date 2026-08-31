@@ -1,0 +1,90 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+# OSAC GPU Observability Checks
+#
+# Tests NVLink telemetry, NVSwitch fabric telemetry, and Fabric Manager logs
+# via DCGM exporter and GPU Operator on OCP.
+#
+# Requires:
+#   - NVIDIA GPU Operator with DCGM exporter
+#   - NVLink/NVSwitch hardware (p4d.24xlarge, p5.48xlarge, or similar)
+#   - OpenShift monitoring stack (Thanos/Prometheus)
+#
+# Checks:
+#   TELEM07-01: GpuNvlinkTelemetryCheck — GPU NVLink metrics from DCGM
+#   OBS09-01: NvswitchFabricTelemetryCheck — NVSwitch fabric metrics from DCGM
+#   OBS11-01: FabricManagerLogsCheck — Fabric Manager pod logs
+#
+# Usage:
+#   KUBECONFIG=/path/to/kubeconfig \
+#   ISVTEST_INCLUDE_UNRELEASED=1 \
+#   uv run isvctl test run -f isvctl/configs/providers/osac/config/k8s-gpu-observability.yaml
+
+import:
+  - ../../../suites/observability.yaml
+
+version: "1.0"
+
+commands:
+  kubernetes:
+    phases: ["test"]
+    best_effort: true
+    steps:
+      - name: gpu_nvlink_telemetry
+        phase: test
+        command: "python3 ../scripts/observability/gpu_nvlink_telemetry.py"
+        output_schema: generic
+        timeout: 60
+
+      - name: nvswitch_fabric_telemetry
+        phase: test
+        command: "python3 ../scripts/observability/nvswitch_fabric_telemetry.py"
+        output_schema: generic
+        timeout: 60
+
+      - name: fabric_manager_logs
+        phase: test
+        command: "python3 ../scripts/observability/fabric_manager_logs.py"
+        output_schema: generic
+        timeout: 60
+
+tests:
+  cluster_name: "osac-gpu"
+  description: "OSAC K8s GPU observability: NVLink telemetry, NVSwitch fabric, Fabric Manager logs"
+
+  exclude:
+    labels:
+      - "storage"
+      - "host"
+      - "vm"
+      - "bare_metal"
+      - "nfs"
+      - "object_storage"
+      - "kms"
+      - "hss"
+      - "nim"
+      - "csi"
+    tests:
+      - "TelemetryDeliveryLatencyCheck"
+      - "StorageCapacityTelemetryCheck"
+      - "StoragePerformanceTelemetryCheck"
+      - "ManagementNetworkTelemetryCheck"
+      - "EastWestNetworkTelemetryCheck"
+      - "HostNicNetworkTelemetryCheck"
+      - "HostSyslogCheck"
+      - "K8sCsiDriverHealthCheck"
+      - "K8sCsiConcurrentPvcCheck"
+      - "K8sCsiPvcExpandCheck"
+      - "K8sApiNetworkAclCheck"
+      - "SdnLatencyPerfLoggingCheck"
+      - "BmcGpuTelemetryCheck"
+      - "SwitchNvlinkTelemetryCheck"
+      - "UfmEventLogsCheck"
+      - "SubnetManagerLogsCheck"
+      - "GeneralSwitchLogsCheck"
+      - "SwitchSyslogCheck"
+      - "SwitchKernelLogsCheck"
+      - "NorthSouthNetworkTelemetryCheck"
+      - "SdnHardwareFaultLoggingCheck"
+      - "VpcFlowLogsCheck"

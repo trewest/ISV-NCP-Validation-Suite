@@ -1,0 +1,108 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+# http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+# OSAC Image Registry Validation Configuration
+#
+# Launches a VM from a container disk image via OpenShift Virtualization
+# (CNV), then verifies SSH connectivity and OS detection.
+#
+# Implemented checks:
+#   BOOT01-05: VmBootedFromCustomImageCheck — VM from custom image reaches running
+#   VmFromCustomImageReadyCheck — VM answers SSH and reports expected OS
+#   BOOT01-02: OsInstallConfigCrudCheck — ConfigMap-based install config CRUD
+#   BOOT01-03: BmHostBootedFromCustomImageCheck — BMI from custom image (bare_metal)
+#
+# Requires: OpenShift Virtualization (CNV) operator installed.
+#
+# Usage:
+#   KUBECONFIG=/path/to/kubeconfig \
+#   ISVTEST_INCLUDE_UNRELEASED=1 \
+#   uv run isvctl test run -f isvctl/configs/providers/osac/config/image-registry.yaml
+
+import:
+  - ../../../suites/image-registry.yaml
+
+version: "1.0"
+
+commands:
+  image_registry:
+    phases: ["test", "teardown"]
+    steps:
+      - name: launch_instance
+        phase: test
+        command: "python3 ../scripts/image_registry/launch_custom_image_vm.py"
+        args:
+          - "--namespace"
+          - "isv-image-test"
+          - "--vm-name"
+          - "isv-custom-image-vm"
+          - "--container-image"
+          - "quay.io/containerdisks/fedora:latest"
+          - "--ssh-user"
+          - "fedora"
+        timeout: 600
+
+      - name: teardown_instance
+        phase: teardown
+        command: "python3 ../scripts/image_registry/teardown_vm.py"
+        args:
+          - "--namespace"
+          - "isv-image-test"
+          - "--vm-name"
+          - "isv-custom-image-vm"
+        timeout: 120
+
+      - name: crud_install_config
+        phase: test
+        command: "python3 ../scripts/image_registry/crud_install_config.py"
+        timeout: 120
+        continue_on_failure: true
+
+      - name: install_image_bm
+        phase: test
+        requires: [bare_metal]
+        command: "python3 ../scripts/image_registry/install_image_bm.py"
+        args:
+          - "--image-id"
+          - "{{steps.upload_image.image_id}}"
+          - "--tenant-namespace"
+          - "{{steps.setup_tenant.tenant_namespace}}"
+        timeout: 1800
+
+tests:
+  cluster_name: "osac-image-registry"
+  description: "OSAC image registry: VM from custom image via CNV with SSH verification"
+
+  settings:
+    region: "osac-default"
+    expected_os: "fedora"
+    user: "fedora"
+
+  validations:
+    vm_ssh:
+      step: launch_instance
+      checks:
+        VmFromCustomImageReadyCheck:
+          test_id: "N/A"
+          labels: ["image_registry", "ssh"]
+          requires: [vm]
+          description: "Check the VM booted from the custom image answers SSH and reports the expected OS"
+          compose:
+            - ConnectivityCheck
+            - OsCheck:
+                expected_os: "fedora"
+
+  exclude:
+    labels: []

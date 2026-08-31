@@ -1,0 +1,208 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+# http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+# OSAC Storage Validation Configuration
+#
+# Implements the block-volume lifecycle checks (VolumeProvisionedCheck,
+# VolumeResizedCheck, VolumeSnapshotRestoredCheck, VolumeDeletedCheck,
+# VolumeHostRunningCheck, VolumePersistsAcrossRestartCheck) using K8s PVC, VolumeSnapshot, and CNV
+# VirtualMachine APIs instead of infrastructure-level block device operations.
+#
+# OSAC has no tenant-facing volume API; storage is consumed via standard K8s
+# PVCs backed by CSI drivers (VAST, Trident, etc.). The provider scripts
+# exercise the same lifecycle — create, attach, format, mount, resize,
+# snapshot, restore — through kubectl.
+#
+# Usage:
+#   KUBECONFIG=/path/to/kubeconfig \
+#   uv run isvctl test run -f isvctl/configs/providers/osac/config/storage.yaml
+#
+# Environment Variables:
+#   - KUBECTL: Override kubectl-compatible CLI (default: auto-detect)
+#   - KUBECONFIG: Path to kubeconfig for the target cluster
+#   - ISVCTL_DEMO_MODE: "1" for dummy success output
+#   - ISVTEST_INCLUDE_UNRELEASED: "1" to run unreleased validations
+
+version: "1.0"
+
+commands:
+  storage:
+    phases: ["setup", "test", "teardown"]
+    steps:
+      - name: launch_instance
+        phase: setup
+        command: "python3 ../scripts/storage/launch_instance.py"
+        output_schema: generic
+        args:
+          - "--namespace-prefix"
+          - "isvtest-vol"
+          - "--storage-class"
+          - "{{storage_class}}"
+        timeout: 600
+
+      - name: create_volume
+        phase: setup
+        command: "python3 ../scripts/storage/create_volume.py"
+        output_schema: generic
+        args:
+          - "--storage-class"
+          - "{{storage_class}}"
+          - "--size"
+          - "{{volume_size_gib}}Gi"
+          - "--namespace"
+          - "{{steps.launch_instance.namespace}}"
+        timeout: 300
+
+      - name: volume_persistence
+        phase: test
+        command: "python3 ../scripts/storage/volume_persistence.py"
+        output_schema: generic
+        args:
+          - "--namespace"
+          - "{{steps.launch_instance.namespace}}"
+          - "--pvc-name"
+          - "{{steps.create_volume.volume_id}}"
+          - "--pod-name"
+          - "{{steps.create_volume.pod_name}}"
+          - "--expected-content"
+          - "{{steps.create_volume.sentinel_content}}"
+        timeout: 300
+
+      - name: snapshot_lifecycle
+        phase: test
+        command: "python3 ../scripts/storage/snapshot_lifecycle.py"
+        output_schema: generic
+        args:
+          - "--namespace"
+          - "{{steps.launch_instance.namespace}}"
+          - "--pvc-name"
+          - "{{steps.create_volume.volume_id}}"
+          - "--expected-content"
+          - "{{steps.create_volume.sentinel_content}}"
+          - "--storage-class"
+          - "{{storage_class}}"
+        timeout: 300
+
+      - name: volume_resize
+        phase: test
+        command: "python3 ../scripts/storage/volume_resize.py"
+        output_schema: generic
+        args:
+          - "--namespace"
+          - "{{steps.launch_instance.namespace}}"
+          - "--pvc-name"
+          - "{{steps.create_volume.volume_id}}"
+          - "--pod-name"
+          - "{{steps.volume_persistence.pod_name}}"
+          - "--mount-point"
+          - "{{steps.create_volume.mount_point}}"
+          - "--new-size"
+          - "{{expanded_size_gib}}Gi"
+        timeout: 300
+
+      - name: teardown_storage
+        phase: teardown
+        command: "python3 ../scripts/storage/teardown.py"
+        args:
+          - "--namespace"
+          - "{{steps.launch_instance.namespace}}"
+        timeout: 60
+
+tests:
+  cluster_name: "osac-storage-validation"
+  description: "OSAC storage: PVC volume lifecycle via K8s APIs"
+
+  settings:
+    storage_class: "lvms-vg1"
+    volume_size_gib: "10"
+    expanded_size_gib: "20"
+
+  validations:
+    instance_launched:
+      step: launch_instance
+      checks:
+        VolumeHostRunningCheck:
+          test_id: "N/A"
+          labels: ["storage"]
+          expected_state: "running"
+          description: "Check the CNV VM that will host the test volume is running"
+          compose:
+            - InstanceStateCheck
+
+    fixture_volume:
+      step: create_volume
+      checks:
+        VolumeProvisionedCheck:
+          test_id: "DATASVC01-01"
+          labels: ["storage"]
+          description: "Check a volume is created, attached, formatted, and mounted with seed data"
+          compose:
+            - StepSuccessCheck
+            - FieldExistsCheck:
+                fields: ["volume_id", "mount_point", "operations"]
+            - CrudOperationsCheck:
+                operations: ["create", "attach", "format", "mount", "write_sentinel"]
+
+    volume_persistence:
+      step: volume_persistence
+      checks:
+        VolumePersistsAcrossRestartCheck:
+          test_id: "DATASVC04-01"
+          labels: ["storage"]
+          description: "Check a volume stays attached with its data after the instance restarts"
+          compose:
+            - StepSuccessCheck
+            - FieldExistsCheck:
+                fields: ["volume_id", "operations"]
+            - CrudOperationsCheck:
+                operations: ["stop", "start", "verify_attached", "verify_data"]
+
+    snapshot_lifecycle:
+      step: snapshot_lifecycle
+      checks:
+        VolumeSnapshotRestoredCheck:
+          test_id: "DATASVC02-01"
+          labels: ["storage"]
+          description: "Check a volume snapshot can be taken and restored with its data intact"
+          compose:
+            - StepSuccessCheck
+            - FieldExistsCheck:
+                fields: ["volume_id", "snapshot_id", "operations"]
+            - CrudOperationsCheck:
+                operations: ["create_snapshot", "restore_volume", "verify_data"]
+
+    volume_resize:
+      step: volume_resize
+      checks:
+        VolumeResizedCheck:
+          test_id: "DATASVC03-01"
+          labels: ["storage"]
+          description: "Check a volume can be grown and the filesystem reports the new size"
+          compose:
+            - StepSuccessCheck
+            - FieldExistsCheck:
+                fields: ["volume_id", "operations"]
+            - CrudOperationsCheck:
+                operations: ["modify_volume", "grow_partition", "resize_filesystem", "verify_size"]
+
+    teardown_checks:
+      step: teardown_storage
+      checks:
+        VolumeDeletedCheck:
+          test_id: "N/A"
+          labels: ["storage"]
+          description: "Check the storage namespace and PVCs are cleaned up at teardown"
+          compose:
+            - StepSuccessCheck

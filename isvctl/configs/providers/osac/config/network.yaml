@@ -55,7 +55,7 @@
 # Not applicable to OSAC:
 #   NET01-01, NET02-02: Physical fabric (BackendSwitchFabric, NvlinkDomain)
 #   SDN08-01:   Storage L3 routing (physical storage network)
-#   SDN09-01..02: SDN hardware/latency logging (no physical SDN controller)
+#   SDN09-01: SDN hardware fault logging (OCP Prometheus/AlertManager)
 #   NET03-01:   BYOIP (not available in OSAC)
 #   SDN05-01:   Floating IP (requires compute instances)
 #   SDN06-01:   Localized DNS (not available in OSAC)
@@ -314,6 +314,15 @@ commands:
           - "--tenant-namespace"
           - "{{steps.setup_tenant.tenant_namespace}}"
         timeout: 300
+
+      # =======================================================================
+      # TEST: SDN hardware fault logging (SDN09-01)
+      # =======================================================================
+      - name: sdn_hardware_fault_logging
+        phase: test
+        command: "python3 ../scripts/network/sdn_hardware_fault_logging.py"
+        timeout: 120
+        continue_on_failure: true
 
       # =======================================================================
       # TEST: VPC Flow Logs (SDN09-04)

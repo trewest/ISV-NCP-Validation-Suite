@@ -1,0 +1,53 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+# http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+# OSAC Object Storage Validation — MinIO S3 CRUD
+#
+# Validates S3 object lifecycle (DATASVC01-01) via MinIO deployed on the cluster.
+# MinIO and mc-client pod must be pre-deployed (see deploy-test-services.sh).
+#
+# Prerequisites:
+#   - MinIO deployment in minio namespace
+#   - mc-client pod with alias configured
+#
+# Environment Variables:
+#   MINIO_NS    — MinIO namespace (default: minio)
+#   MC_POD      — mc client pod name (default: mc-client)
+#
+# Usage:
+#   KUBECONFIG=~/.kube/osac-gpu-oci11.kubeconfig \
+#     uv run isvctl test run -f isvctl/configs/providers/osac/config/k8s-object-storage.yaml
+
+import:
+  - ../../../suites/control-plane.yaml
+
+version: "1.0"
+
+commands:
+  control_plane:
+    phases: ["setup", "test", "teardown"]
+    steps:
+      - name: s3_object_lifecycle
+        phase: test
+        command: "python3 ../scripts/control-plane/s3_object_lifecycle.py"
+        timeout: 120
+
+tests:
+  cluster_name: "osac-object-storage-validation"
+  description: "OSAC object storage: MinIO S3 CRUD lifecycle"
+
+  settings:
+    region: "osac-default"
+    services: "minio"

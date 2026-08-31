@@ -148,7 +148,15 @@ def _control_plane_namespace(kc: str) -> str:
 
 def _runtime_class(kc: str) -> str:
     r = _run(f"{kc} get runtimeclass nvidia")
-    return "nvidia" if r.returncode == 0 else ""
+    if r.returncode != 0:
+        return ""
+    # OCP GPU Operator uses OCI prestart hooks, not a CRI-O runtime handler.
+    # The RuntimeClass exists but CRI-O has no matching handler, so pods with
+    # runtimeClassName=nvidia are rejected. Return "" to omit the field.
+    r2 = _run(f"{kc} api-versions")
+    if r2.returncode == 0 and "config.openshift.io/v1" in r2.stdout:
+        return ""
+    return "nvidia"
 
 
 def _csi_storage_classes(kc: str) -> dict[str, str]:

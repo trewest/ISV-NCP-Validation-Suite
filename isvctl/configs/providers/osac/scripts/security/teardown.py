@@ -40,11 +40,16 @@ def _kubectl() -> str:
 
 
 def _cleanup_tenants(namespace: str) -> list[str]:
-    """Delete any leftover ISV test tenants."""
+    """Delete any leftover ISV test tenants.
+
+    Removes finalizers before deleting to avoid blocking on stuck
+    controllers (e.g. storage controller without a configured backend).
+    """
     errors: list[str] = []
+    kctl = _kubectl()
     try:
         cmd = [
-            _kubectl(),
+            kctl,
             "get",
             "tenants.osac.openshift.io",
             "-n",
@@ -57,19 +62,40 @@ def _cleanup_tenants(namespace: str) -> list[str]:
             for name in result.stdout.strip().split():
                 if name.startswith("isv-"):
                     try:
+                        # Remove finalizers first to avoid hanging on
+                        # controllers that cannot process deletion.
+                        # Use JSON patch (not merge) — merge patch may be
+                        # ignored on objects with a deletionTimestamp.
                         subprocess.run(
                             [
-                                _kubectl(),
+                                kctl,
+                                "patch",
+                                f"tenants.osac.openshift.io/{name}",
+                                "-n",
+                                namespace,
+                                "--type",
+                                "json",
+                                "-p",
+                                '[{"op":"remove","path":"/metadata/finalizers"}]',
+                            ],
+                            capture_output=True,
+                            text=True,
+                            timeout=10,
+                        )
+                        subprocess.run(
+                            [
+                                kctl,
                                 "delete",
                                 "tenants.osac.openshift.io",
                                 name,
                                 "-n",
                                 namespace,
                                 "--ignore-not-found",
+                                "--wait=false",
                             ],
                             capture_output=True,
                             text=True,
-                            timeout=30,
+                            timeout=15,
                         )
                     except Exception as e:
                         errors.append(f"tenant {name}: {e}")

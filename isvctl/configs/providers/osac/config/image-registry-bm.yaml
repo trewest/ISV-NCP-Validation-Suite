@@ -1,0 +1,84 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+# http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+# OSAC Image Registry — Bare Metal Custom Image Install (BOOT01-03)
+#
+# Standalone config for BmHostBootedFromCustomImageCheck. Creates an
+# ephemeral tenant, uploads a custom OS image reference, launches a
+# BareMetalInstance, and verifies it reaches RUNNING state.
+#
+# Requires: OSAC stack with bmf-operator, AAP, spare BareMetalHosts.
+# Run from a host with direct BMH network access (e.g. the hypervisor).
+#
+# Usage:
+#   ISVTEST_INCLUDE_UNRELEASED=1 \
+#   uv run isvctl test run \
+#     -f isvctl/configs/providers/osac/config/image-registry-bm.yaml \
+#     --capability bare_metal
+
+import:
+  - ../../../suites/image-registry.yaml
+
+version: "1.0"
+
+commands:
+  image_registry:
+    phases: ["setup", "test", "teardown"]
+    steps:
+      - name: setup_tenant
+        phase: setup
+        command: "python3 ../scripts/network/setup_tenant.py"
+        args:
+          - "--region"
+          - "{{region}}"
+        timeout: 180
+
+      - name: upload_image
+        phase: setup
+        command: "python3 ../scripts/image_registry/upload_image_osac.py"
+        timeout: 180
+
+      - name: install_image_bm
+        phase: test
+        requires: [bare_metal]
+        command: "python3 ../scripts/image_registry/install_image_bm.py"
+        args:
+          - "--image-id"
+          - "{{steps.upload_image.image_id}}"
+          - "--tenant-namespace"
+          - "{{steps.setup_tenant.tenant_namespace}}"
+        timeout: 1800
+
+      - name: teardown
+        phase: teardown
+        command: "python3 ../scripts/bare_metal/teardown.py"
+        args:
+          - "--instance-id"
+          - "{{steps.install_image_bm.instance_id | default('none')}}"
+          - "--tenant-name"
+          - "{{steps.setup_tenant.tenant_name | default('none')}}"
+          - "--tenant-namespace"
+          - "{{steps.setup_tenant.tenant_namespace | default('none')}}"
+        timeout: 600
+
+tests:
+  cluster_name: "osac-bm-from-image"
+  description: "OSAC bare metal: install custom OS image on BareMetalInstance"
+
+  settings:
+    region: "osac-default"
+
+  exclude:
+    labels: []

@@ -1,0 +1,64 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+# http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+# OSAC HSS Storage — QoS Throughput + Parallel FS Provisioning
+#
+# Tests additional high-speed storage capabilities:
+#   HSS02-01: HssQosThroughputCheck — bandwidth/IOPS meet minimum thresholds
+#   HSS07-01: HssParallelFsProvisioningCheck — CephFS parallel filesystem
+#
+# Prerequisites:
+#   - OCP cluster with OCS (Ceph RBD + CephFS) storage classes
+#   - kubectl/oc with cluster-admin access
+#
+# Usage:
+#   ISVTEST_INCLUDE_UNRELEASED=1 \
+#   uv run isvctl test run \
+#     -f isvctl/configs/providers/osac/config/hss-storage-extra.yaml \
+#     --capability vm --capability bare_metal
+
+import:
+  - ../../../suites/storage.yaml
+
+version: "1.0"
+
+commands:
+  storage:
+    phases: ["test"]
+    steps:
+      - name: qos_throughput
+        phase: test
+        command: "python3 ../scripts/storage/qos_throughput.py"
+        timeout: 300
+        continue_on_failure: true
+
+      - name: provision_parallel_fs
+        phase: test
+        command: "python3 ../scripts/storage/parallel_fs_provisioning.py"
+        timeout: 240
+        continue_on_failure: true
+
+tests:
+  cluster_name: "osac-hss-storage-extra"
+  description: "OSAC HSS storage: QoS throughput and parallel filesystem provisioning"
+
+  settings:
+    region: "osac-default"
+
+  exclude:
+    labels:
+      - "gpu"
+      - "workload"
+      - "slow"

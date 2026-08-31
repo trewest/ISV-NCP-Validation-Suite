@@ -47,10 +47,8 @@ def main() -> int:
         "platform": "network",
         "test_name": "connectivity_test",
         "instances": [
-            {"instance_id": args.instance_a_id, "public_ip": args.external_ip_a,
-             "private_ip": args.external_ip_a},
-            {"instance_id": args.instance_b_id, "public_ip": args.external_ip_b,
-             "private_ip": args.external_ip_b},
+            {"instance_id": args.instance_a_id, "public_ip": args.external_ip_a, "private_ip": args.external_ip_a},
+            {"instance_id": args.instance_b_id, "public_ip": args.external_ip_b, "private_ip": args.external_ip_b},
         ],
     }
 

@@ -1,0 +1,64 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+# OSAC Provider-Hidden BMC Security Checks
+#
+# Passes BMC security checks where the BMC/IPMI/Redfish management
+# plane is not exposed to tenants.  In OCP-based clouds, BMC management
+# is handled by the platform (Metal3/Ironic); tenants have no direct
+# access to BMC endpoints.
+#
+# Checks:
+#   SEC12-01: BmcManagementNetworkCheck — BMC dedicated mgmt network (provider-hidden)
+#   SEC12-02: BmcTenantIsolationCheck — BMC tenant isolation (provider-hidden)
+#   CNP10-01: BmcProtocolSecurityCheck — BMC protocol security (provider-hidden)
+#   SEC12-03: BmcBastionAccessCheck — BMC bastion access (provider-hidden)
+#
+# Usage:
+#   ISVTEST_INCLUDE_UNRELEASED=1 \
+#   uv run isvctl test run -f isvctl/configs/providers/osac/config/security-bmc-provider-hidden.yaml
+
+import:
+  - ../../../suites/security.yaml
+
+version: "1.0"
+
+commands:
+  kubernetes:
+    phases: ["test"]
+    best_effort: true
+    steps:
+      - name: bmc_management_network
+        phase: test
+        command: "python3 ../scripts/security/bmc_security_probes.py --aspect bmc_management_network"
+        output_schema: generic
+        timeout: 10
+
+      - name: bmc_tenant_isolation
+        phase: test
+        command: "python3 ../scripts/security/bmc_security_probes.py --aspect bmc_tenant_isolation"
+        output_schema: generic
+        timeout: 10
+
+      - name: bmc_protocol_security
+        phase: test
+        command: "python3 ../scripts/security/bmc_security_probes.py --aspect bmc_protocol_security"
+        output_schema: generic
+        timeout: 10
+
+      - name: bmc_bastion_access
+        phase: test
+        command: "python3 ../scripts/security/bmc_security_probes.py --aspect bmc_bastion_access"
+        output_schema: generic
+        timeout: 10
+
+tests:
+  cluster_name: "osac"
+  description: "OSAC provider-hidden BMC security: management network, isolation, protocol, bastion"
+
+  include:
+    tests:
+      - "BmcManagementNetworkCheck"
+      - "BmcTenantIsolationCheck"
+      - "BmcProtocolSecurityCheck"
+      - "BmcBastionAccessCheck"

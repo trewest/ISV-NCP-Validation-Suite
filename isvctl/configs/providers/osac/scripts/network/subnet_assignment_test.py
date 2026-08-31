@@ -91,8 +91,7 @@ def main() -> int:
             result["tests"]["subnet_assigned"] = {
                 "passed": False,
                 "error": (
-                    f"Subnet {args.target_subnet_id} belongs to VPC {actual_vpc_id}, "
-                    f"expected {args.target_vpc_id}"
+                    f"Subnet {args.target_subnet_id} belongs to VPC {actual_vpc_id}, expected {args.target_vpc_id}"
                 ),
             }
 

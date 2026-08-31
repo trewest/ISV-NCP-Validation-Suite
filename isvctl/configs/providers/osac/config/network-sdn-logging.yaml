@@ -1,0 +1,57 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+# http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+# OSAC SDN Logging Validation
+#
+# Validates SDN hardware fault logging via OCP Prometheus/AlertManager.
+#
+# Implemented checks:
+#   SDN09-01: SdnHardwareFaultLoggingCheck — network fault event logging
+#
+# Prerequisites:
+#   - OCP cluster with openshift-monitoring namespace
+#   - kubectl/oc with cluster-admin access
+#
+# Usage:
+#   ISVTEST_INCLUDE_UNRELEASED=1 \
+#   uv run isvctl test run \
+#     -f isvctl/configs/providers/osac/config/network-sdn-logging.yaml
+
+import:
+  - ../../../suites/network.yaml
+
+version: "1.0"
+
+commands:
+  network:
+    phases: ["test"]
+    steps:
+      - name: sdn_hardware_fault_logging
+        phase: test
+        command: "python3 ../scripts/network/sdn_hardware_fault_logging.py"
+        timeout: 120
+
+tests:
+  cluster_name: "osac-network-sdn-logging"
+  description: "OSAC network: SDN hardware fault logging via OCP monitoring"
+
+  settings:
+    region: "osac-default"
+
+  exclude:
+    labels:
+      - "gpu"
+      - "workload"
+      - "slow"

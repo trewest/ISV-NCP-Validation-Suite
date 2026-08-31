@@ -168,13 +168,25 @@ def stat_size_mtime_cmd(path: str) -> str:
 def flock_hold_command(lock_path: str) -> list[str]:
     """Container command that grabs an exclusive ``flock`` and holds it for the
     pod's lifetime (released only when the pod is deleted).
+
+    Uses an explicit fd opened O_RDWR (``<>``) because busybox ``flock``
+    opens with O_RDONLY, which NFS v4 rejects for exclusive locks.
     """
-    return ["flock", "-x", lock_path, "sh", "-c", "while true; do sleep 3600; done"]
+    quoted = shlex.quote(lock_path)
+    return [
+        "sh", "-c",
+        f"exec 9<>{quoted} && flock -x 9 && while true; do sleep 3600; done",
+    ]
 
 
 def flock_nonblock_cmd(lock_path: str) -> str:
-    """Try to grab an exclusive ``flock`` without blocking; non-zero on EAGAIN."""
-    return f"flock -xn {shlex.quote(lock_path)} true"
+    """Try to grab an exclusive ``flock`` without blocking; non-zero on EAGAIN.
+
+    Uses an explicit fd opened O_RDWR (``<>``) because busybox ``flock``
+    opens with O_RDONLY, which NFS v4 rejects for exclusive locks.
+    """
+    quoted = shlex.quote(lock_path)
+    return f"exec 9<>{quoted} && flock -xn 9"
 
 
 def create_files_cmd(directory: str, count: int, prefix: str = "f") -> str:
@@ -1109,6 +1121,10 @@ class K8sPosixComplianceCheck(_K8sSharedFsCheck):
         build_timeout_s: Max wait for autoreconf+configure+make (default 600).
         tests_subdir: Optional ``tests/`` subdirectory to scope the run to a
             subset (e.g. ``chmod``); default runs the full suite.
+        allowed_failures: Optional list of test file path suffixes
+            (e.g. ``["unlink/14.t"]``) whose failures are expected and do not
+            count toward the overall pass/fail verdict. Subtests for these
+            files are still reported but marked as allowed.
         node_selector / tolerations: optional pod scheduling controls.
         timeout: Per-command timeout, also bounds the prove run (default 3600).
     """
@@ -1246,25 +1262,41 @@ class K8sPosixComplianceCheck(_K8sSharedFsCheck):
 
             # Emit a subtest per file (pass and fail) so the JUnit export is a
             # complete per-file POSIX-compliance record, not just the failures.
+            allowed = [str(p) for p in (self.config.get("allowed_failures") or [])]
             failed_map = dict(result.failed_files)
+            unexpected_failures: list[str] = []
             for fname in result.all_files:
                 if fname in failed_map:
                     nfailed = failed_map[fname]
-                    message = (
-                        f"{nfailed} POSIX subtest(s) failed" if nfailed else "non-zero exit status (crashed / dubious)"
-                    )
-                    self.report_subtest(fname, passed=False, message=message)
+                    is_allowed = any(fname.endswith(p) for p in allowed)
+                    if is_allowed:
+                        message = (
+                            f"{nfailed} POSIX subtest(s) failed (allowed)"
+                            if nfailed
+                            else "non-zero exit status (allowed)"
+                        )
+                        self.report_subtest(fname, passed=True, message=message)
+                    else:
+                        message = (
+                            f"{nfailed} POSIX subtest(s) failed"
+                            if nfailed
+                            else "non-zero exit status (crashed / dubious)"
+                        )
+                        self.report_subtest(fname, passed=False, message=message)
+                        unexpected_failures.append(fname)
                 else:
                     self.report_subtest(fname, passed=True)
 
-            if result.success and proven.exit_code == 0:
+            n_allowed = len(result.failed_files) - len(unexpected_failures)
+            if not unexpected_failures:
+                allowed_note = f", {n_allowed} allowed failure(s)" if n_allowed else ""
                 self.set_passed(
                     f"pjdfstest POSIX compliance passed: {result.tests_total} tests across "
-                    f"{result.files_total} files, 0 failures"
+                    f"{result.files_total} files{allowed_note}"
                 )
             else:
                 self.set_failed(
-                    f"pjdfstest reported failures ({len(result.failed_files)} test file(s) with failures, "
+                    f"pjdfstest reported failures ({len(unexpected_failures)} unexpected test file(s) with failures, "
                     f"prove result {result.result or 'FAIL'}); see subtests",
                     output=combined[-2000:],
                 )

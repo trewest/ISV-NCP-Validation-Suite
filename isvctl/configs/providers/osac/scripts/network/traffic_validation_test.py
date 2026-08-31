@@ -43,7 +43,7 @@ SSH_RETRIES = 5
 SSH_SLEEP = 10
 
 # IP that should be unreachable from the BMH management bridge
-BLOCKED_TARGET = "240.0.0.1"      # Class E address — rejected by Linux kernel before routing
+BLOCKED_TARGET = "240.0.0.1"  # Class E address — rejected by Linux kernel before routing
 
 # Hypervisor libvirt gateway — always reachable from BMH VMs
 GATEWAY_IP = "192.168.160.1"
@@ -54,11 +54,24 @@ def ssh_cmd(key_file: str, host: str, command: str, timeout: int = 30) -> tuple[
     t0 = time.monotonic()
     try:
         proc = subprocess.run(
-            ["ssh", "-i", key_file, "-o", "StrictHostKeyChecking=no",
-             "-o", "UserKnownHostsFile=/dev/null",
-             "-o", f"ConnectTimeout={timeout}", "-o", "BatchMode=yes",
-             f"fedora@{host}", command],
-            capture_output=True, text=True, timeout=timeout + 5,
+            [
+                "ssh",
+                "-i",
+                key_file,
+                "-o",
+                "StrictHostKeyChecking=no",
+                "-o",
+                "UserKnownHostsFile=/dev/null",
+                "-o",
+                f"ConnectTimeout={timeout}",
+                "-o",
+                "BatchMode=yes",
+                f"fedora@{host}",
+                command,
+            ],
+            capture_output=True,
+            text=True,
+            timeout=timeout + 5,
         )
         return proc.returncode, proc.stdout.strip(), round(time.monotonic() - t0, 2)
     except Exception as e:
@@ -111,26 +124,30 @@ def main() -> int:
 
     # traffic_allowed: ping BMI-B NIC IP from BMI-A
     if args.bmh_ip_b:
-        rc, out, elapsed = ssh_cmd(args.key_file, args.external_ip_a,
-                                   f"ping -c 2 -W 3 {args.bmh_ip_b} 2>&1 | tail -2")
+        rc, out, elapsed = ssh_cmd(args.key_file, args.external_ip_a, f"ping -c 2 -W 3 {args.bmh_ip_b} 2>&1 | tail -2")
         if rc == 0:
             result["tests"]["traffic_allowed"] = {
-                "passed": True, "latency_ms": round(elapsed * 1000, 1), "target": args.bmh_ip_b,
+                "passed": True,
+                "latency_ms": round(elapsed * 1000, 1),
+                "target": args.bmh_ip_b,
             }
         else:
             result["tests"]["traffic_allowed"] = {
-                "passed": False, "error": f"ping to {args.bmh_ip_b} failed: {out}",
+                "passed": False,
+                "error": f"ping to {args.bmh_ip_b} failed: {out}",
             }
     else:
         result["tests"]["traffic_allowed"] = {"passed": False, "error": "bmh_ip_b not provided"}
 
     # traffic_blocked: the cudn network class does not enforce security group egress rules
     # on BMIs — outbound traffic is not filtered in this environment.
-    result["tests"]["traffic_blocked"] = {"passed": True, "note": "not applicable with cudn network class (no egress SG enforcement)"}
+    result["tests"]["traffic_blocked"] = {
+        "passed": True,
+        "note": "not applicable with cudn network class (no egress SG enforcement)",
+    }
 
     # internet_icmp: ping hypervisor gateway
-    rc, out, _ = ssh_cmd(args.key_file, args.external_ip_a,
-                         f"ping -c 2 -W 3 {GATEWAY_IP} 2>&1 | tail -2")
+    rc, out, _ = ssh_cmd(args.key_file, args.external_ip_a, f"ping -c 2 -W 3 {GATEWAY_IP} 2>&1 | tail -2")
     result["tests"]["internet_icmp"] = {
         "passed": rc == 0,
         "target": GATEWAY_IP,
@@ -138,14 +155,17 @@ def main() -> int:
     }
 
     # internet_http: curl Sushy BMC server on hypervisor
-    rc, out, _ = ssh_cmd(args.key_file, args.external_ip_a,
-                         f"curl -s -o /dev/null -w '%{{http_code}}' --max-time 5 {BMC_HTTP_URL}")
+    rc, out, _ = ssh_cmd(
+        args.key_file, args.external_ip_a, f"curl -s -o /dev/null -w '%{{http_code}}' --max-time 5 {BMC_HTTP_URL}"
+    )
     http_code = out.strip()
     result["tests"]["internet_http"] = {
         "passed": rc == 0 and http_code in ("200", "301", "302"),
         "target": BMC_HTTP_URL,
         "http_code": http_code,
-        **({"error": f"HTTP {http_code or 'no response'}"} if rc != 0 or http_code not in ("200", "301", "302") else {}),
+        **(
+            {"error": f"HTTP {http_code or 'no response'}"} if rc != 0 or http_code not in ("200", "301", "302") else {}
+        ),
     }
 
     result["success"] = all(t.get("passed") for t in result["tests"].values())

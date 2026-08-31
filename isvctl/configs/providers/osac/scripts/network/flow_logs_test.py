@@ -113,11 +113,16 @@ def main() -> int:
         get_env_config(require_admin=False)
 
         # Check for Network Observability (NetObserv) FlowCollector CRD
-        rc, fc_json = _kubectl([
-            "get", "flowcollector", "cluster",
-            "-o", "json",
-            "--ignore-not-found",
-        ])
+        rc, fc_json = _kubectl(
+            [
+                "get",
+                "flowcollector",
+                "cluster",
+                "-o",
+                "json",
+                "--ignore-not-found",
+            ]
+        )
 
         if rc == 0 and fc_json:
             fc = json.loads(fc_json)
@@ -199,10 +204,15 @@ def main() -> int:
                 }
         else:
             # Fall back: check for OVN audit logging on the cluster
-            rc2, ovn_out = _kubectl([
-                "get", "network.operator.openshift.io", "cluster",
-                "-o", "jsonpath={.spec.defaultNetwork.ovnKubernetesConfig.policyAuditConfig}",
-            ])
+            rc2, ovn_out = _kubectl(
+                [
+                    "get",
+                    "network.operator.openshift.io",
+                    "cluster",
+                    "-o",
+                    "jsonpath={.spec.defaultNetwork.ovnKubernetesConfig.policyAuditConfig}",
+                ]
+            )
 
             if rc2 == 0 and ovn_out:
                 result["tests"]["flow_log_endpoint_reachable"] = {

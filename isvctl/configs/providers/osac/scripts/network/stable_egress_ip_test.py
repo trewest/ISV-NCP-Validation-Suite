@@ -45,11 +45,24 @@ EGRESS_URL = "https://api.ipify.org"
 def ssh_cmd(key_file: str, host: str, command: str, timeout: int = 30) -> tuple[int, str]:
     try:
         proc = subprocess.run(
-            ["ssh", "-i", key_file, "-o", "StrictHostKeyChecking=no",
-             "-o", "UserKnownHostsFile=/dev/null",
-             "-o", f"ConnectTimeout={timeout}", "-o", "BatchMode=yes",
-             f"fedora@{host}", command],
-            capture_output=True, text=True, timeout=timeout + 5,
+            [
+                "ssh",
+                "-i",
+                key_file,
+                "-o",
+                "StrictHostKeyChecking=no",
+                "-o",
+                "UserKnownHostsFile=/dev/null",
+                "-o",
+                f"ConnectTimeout={timeout}",
+                "-o",
+                "BatchMode=yes",
+                f"fedora@{host}",
+                command,
+            ],
+            capture_output=True,
+            text=True,
+            timeout=timeout + 5,
         )
         return proc.returncode, proc.stdout.strip()
     except Exception as e:
@@ -76,7 +89,7 @@ def main() -> int:
         "platform": "network",
         "test_name": "stable_egress_ip_test",
         "tests": {
-            "create_instance": {"passed": True},   # already done by launch_bm_instances
+            "create_instance": {"passed": True},  # already done by launch_bm_instances
             "probe_egress_ip": {"passed": False},
             "egress_ip_stable": {"passed": False},
         },
@@ -101,8 +114,7 @@ def main() -> int:
     probed_ips: list[str] = []
     max_attempts = PROBE_COUNT + 3
     for i in range(max_attempts):
-        rc, out = ssh_cmd(args.key_file, args.external_ip,
-                          f"curl -s --max-time 15 {EGRESS_URL} 2>/dev/null || echo ''")
+        rc, out = ssh_cmd(args.key_file, args.external_ip, f"curl -s --max-time 15 {EGRESS_URL} 2>/dev/null || echo ''")
         ip = out.strip()
         if ip:
             probed_ips.append(ip)

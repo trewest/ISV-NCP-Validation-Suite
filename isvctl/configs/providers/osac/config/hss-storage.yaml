@@ -1,0 +1,99 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+# http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+# OSAC HSS Storage Validation Configuration
+#
+# Tests high-speed storage capabilities using OCP CSI (Ceph RBD/CephFS):
+#   HSS01-01: HssStorageProvisioningCheck — CSI dynamic provisioning
+#   HSS09-01: HssMultipleFilesystemsCheck — multiple PVCs coexist
+#   HSS10-01: HssLiveExpansionCheck — PVC expansion during IO
+#   HSS02-01: HssQosThroughputCheck — dd bandwidth/IOPS on Ceph RBD
+#   HSS07-01: HssParallelFsProvisioningCheck — CephFS parallel FS provisioning
+#   HSS12-01: HssQuotaEnforcementCheck — K8s ResourceQuota enforcement
+#   HSS15-01: HssChangelogAuditCheck — K8s API audit logging
+#
+# Prerequisites:
+#   - OCP cluster with OCS (Ceph) storage classes
+#   - kubectl/oc with cluster-admin access
+#
+# Usage:
+#   ISVTEST_INCLUDE_UNRELEASED=1 \
+#   uv run isvctl test run \
+#     -f isvctl/configs/providers/osac/config/hss-storage.yaml \
+#     --capability vm --capability bare_metal
+
+import:
+  - ../../../suites/storage.yaml
+
+version: "1.0"
+
+commands:
+  storage:
+    phases: ["test"]
+    steps:
+      - name: provision_storage
+        phase: test
+        command: "python3 ../scripts/storage/provision_storage.py"
+        timeout: 120
+        continue_on_failure: true
+
+      - name: multiple_filesystems
+        phase: test
+        command: "python3 ../scripts/storage/multiple_filesystems.py"
+        timeout: 180
+        continue_on_failure: true
+
+      - name: live_expansion
+        phase: test
+        command: "python3 ../scripts/storage/live_expansion.py"
+        timeout: 360
+        continue_on_failure: true
+
+      - name: quota_enforcement
+        phase: test
+        command: "python3 ../scripts/storage/quota_enforcement.py"
+        timeout: 240
+        continue_on_failure: true
+
+      - name: changelog_audit
+        phase: test
+        command: "python3 ../scripts/storage/changelog_audit.py"
+        timeout: 120
+        continue_on_failure: true
+
+      - name: qos_throughput
+        phase: test
+        command: "python3 ../scripts/storage/qos_throughput.py"
+        timeout: 360
+        continue_on_failure: true
+
+      - name: provision_parallel_fs
+        phase: test
+        command: "python3 ../scripts/storage/parallel_fs_provisioning.py"
+        timeout: 360
+        continue_on_failure: true
+
+tests:
+  cluster_name: "osac-hss-storage"
+  description: "OSAC HSS storage validation (CSI provisioning, expansion, quotas, audit)"
+
+  settings:
+    region: "osac-default"
+
+  exclude:
+    labels:
+      - "gpu"
+      - "workload"
+      - "slow"

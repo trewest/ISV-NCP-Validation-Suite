@@ -1,0 +1,65 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+# http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+# OSAC Network DNS + L3 Routing Validation
+#
+# Validates localized DNS resolution and storage L3 routing on OCP
+# using CoreDNS/K8s Services and OVN-Kubernetes pod networking.
+#
+# Implemented checks:
+#   SDN06-01: LocalizedDnsCheck — DNS resolution via K8s Services
+#   SDN08-01: StorageL3RoutingCheck — cross-subnet L3 routing via OVN
+#
+# Prerequisites:
+#   - Multi-node OCP cluster with OVN-Kubernetes (>=2 worker nodes)
+#   - KUBECONFIG set to the cluster kubeconfig
+#
+# Usage:
+#   ISVTEST_INCLUDE_UNRELEASED=1 \
+#   uv run isvctl test run -f isvctl/configs/providers/osac/config/network-dns-l3.yaml
+
+import:
+  - ../../../suites/network.yaml
+
+version: "1.0"
+
+commands:
+  network:
+    phases: ["test"]
+    steps:
+      - name: dns_test
+        phase: test
+        command: "python3 ../scripts/network/dns_test.py"
+        timeout: 180
+        continue_on_failure: true
+
+      - name: storage_l3_routing
+        phase: test
+        command: "python3 ../scripts/network/storage_l3_routing_test.py"
+        timeout: 180
+        continue_on_failure: true
+
+tests:
+  cluster_name: "osac-network-dns-l3"
+  description: "OSAC network: localized DNS and storage L3 routing"
+
+  settings:
+    region: "osac-default"
+
+  exclude:
+    labels:
+      - "gpu"
+      - "workload"
+      - "slow"

@@ -90,13 +90,15 @@ def main() -> int:
     }
 
     if DEMO_MODE:
-        result.update({
-            "success": True,
-            "target_rule_id": "isv-sg-prop-demo",
-            "add_observed_seconds": 0.3,
-            "remove_observed_seconds": 0.4,
-            "tests": {k: {"passed": True} for k in result["tests"]},
-        })
+        result.update(
+            {
+                "success": True,
+                "target_rule_id": "isv-sg-prop-demo",
+                "add_observed_seconds": 0.3,
+                "remove_observed_seconds": 0.4,
+                "tests": {k: {"passed": True} for k in result["tests"]},
+            }
+        )
         print(json.dumps(result, indent=2))
         return 0
 
@@ -132,10 +134,21 @@ def main() -> int:
         # Add probe rule and time propagation
         t_add_start = time.monotonic()
         s, b = client.update_security_group(
-            sg_id, "spec.ingress",
-            {"spec": {"virtual_network": {"id": vnet_id}, "ingress": [
-                {"protocol": "PROTOCOL_TCP", "port_from": probe_port, "port_to": probe_port, "ipv4_cidr": "0.0.0.0/0"},
-            ]}},
+            sg_id,
+            "spec.ingress",
+            {
+                "spec": {
+                    "virtual_network": {"id": vnet_id},
+                    "ingress": [
+                        {
+                            "protocol": "PROTOCOL_TCP",
+                            "port_from": probe_port,
+                            "port_to": probe_port,
+                            "ipv4_cidr": "0.0.0.0/0",
+                        },
+                    ],
+                }
+            },
         )
         if s != 200:
             result["tests"]["create_probe_rule"]["error"] = f"update_sg HTTP {s}"
@@ -154,7 +167,8 @@ def main() -> int:
         # Remove probe rule and time propagation
         t_remove_start = time.monotonic()
         s, b = client.update_security_group(
-            sg_id, "spec.ingress",
+            sg_id,
+            "spec.ingress",
             {"spec": {"virtual_network": {"id": vnet_id}, "ingress": []}},
         )
         if s != 200:
@@ -164,7 +178,9 @@ def main() -> int:
 
             elapsed = _poll_rule_absent(client, sg_id, probe_port, MAX_PROPAGATION_SECONDS * 2)
             if elapsed is None:
-                result["tests"]["removal_observed"]["error"] = f"Rule removal not reflected within {MAX_PROPAGATION_SECONDS * 2}s"
+                result["tests"]["removal_observed"]["error"] = (
+                    f"Rule removal not reflected within {MAX_PROPAGATION_SECONDS * 2}s"
+                )
             else:
                 remove_seconds = round(elapsed, 3)
                 result["remove_observed_seconds"] = remove_seconds

@@ -1,0 +1,74 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+# http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+# OSAC Multi-Cluster Same-VPC Validation Configuration
+#
+# Verifies that two OCP clusters on the same hypervisor (sealusa51) share the
+# same network (libvirt 192.168.123.0/24).
+#
+# Implemented checks:
+#   K8S26-01: K8sMultiClusterSameVpcCheck — two clusters share tenancy and VPC
+#
+# Prerequisites:
+#   - Two kubeconfigs: KUBECONFIG_CLUSTER1 and KUBECONFIG_CLUSTER2
+#   - Both clusters must have at least 1 Ready node
+#
+# Usage:
+#   KUBECONFIG_CLUSTER1=/root/.kube/ocp-edge-ci-phase2.kubeconfig \
+#   KUBECONFIG_CLUSTER2=/root/.kube/osac-tal-2.kubeconfig \
+#   ISVTEST_INCLUDE_UNRELEASED=1 \
+#   uv run isvctl test run -f isvctl/configs/providers/osac/config/k8s-multi-cluster.yaml
+
+import:
+  - ../../../suites/k8s.yaml
+
+version: "1.0"
+
+commands:
+  kubernetes:
+    phases: ["test"]
+    steps:
+      - name: create_test_shared_vpc_cluster
+        phase: test
+        command: "python3 ../scripts/k8s/verify_multi_cluster.py"
+        args:
+          - "--cluster1-kubeconfig"
+          - "{{env.KUBECONFIG_CLUSTER1}}"
+          - "--cluster1-name"
+          - "ocp-edge-ci-phase2"
+          - "--cluster2-kubeconfig"
+          - "{{env.KUBECONFIG_CLUSTER2}}"
+          - "--cluster2-name"
+          - "osac-tal-2"
+          - "--tenancy-id"
+          - "sealusa51-hypervisor"
+          - "--network-id"
+          - "libvirt-192.168.123.0/24"
+        timeout: 60
+
+tests:
+  cluster_name: "osac-multi-cluster"
+  description: "OSAC multi-cluster: verify two OCP clusters share the same network"
+
+  settings:
+    region: "osac-default"
+
+  exclude:
+    labels:
+      - "gpu"
+      - "workload"
+      - "slow"
+      - "storage"
+      - "slurm"

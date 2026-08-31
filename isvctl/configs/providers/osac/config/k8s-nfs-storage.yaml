@@ -1,0 +1,142 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+# http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+# OSAC K8s NFS Storage Validation Configuration
+# Runs K8s shared-filesystem checks against the nfs-client StorageClass
+# on osac-gpu-oci11. Imports the K8s suite (for kubernetes capability)
+# and adds the storage filesystem checks from the storage suite.
+#
+# Prerequisites:
+#   - NFS server + nfs-subdir-external-provisioner deployed (StorageClass: nfs-client)
+#   - Multi-node cluster (cross-node checks need pods on different nodes)
+#
+# Usage:
+#   KUBECONFIG=~/.kube/osac-gpu-oci11.kubeconfig \
+#     uv run isvctl test run -f isvctl/configs/providers/osac/config/k8s-nfs-storage.yaml
+
+import: ../../ocp/config/k8s.yaml
+
+version: "1.0"
+
+commands:
+  kubernetes:
+    steps:
+      - name: setup
+        phase: setup
+        command: "python3 ../../ocp/scripts/k8s/setup.py"
+        output_schema: cluster
+        timeout: 300
+      - name: teardown
+        phase: teardown
+        command: "python3 ../../ocp/scripts/k8s/teardown.py"
+        timeout: 30
+
+tests:
+  description: "OSAC K8s NFS storage validation (cross-node, POSIX, flock)"
+
+  validations:
+    k8s_storage:
+      checks:
+        K8sNodeKernelModulesCheck:
+          test_id: "HSS11-04"
+          labels: ["kubernetes", "storage"]
+          kernel_modules: ["nvidia"]
+          node_selector:
+            nvidia.com/gpu.present: "true"
+        K8sNfsMountOptionsCheck:
+          test_id: "HSS11-01"
+          labels: ["kubernetes", "storage"]
+          shared_fs_storage_class: "nfs-client"
+          nfs_storage_class: "nfs-client"
+        K8sCsiStorageTypesCheck:
+          test_id: "K8S23-04"
+          labels: ["kubernetes", "min_req", "storage"]
+          block_storage_class: "oci-bv"
+          shared_fs_storage_class: "nfs-client"
+          nfs_storage_class: "nfs-client"
+          pvc_size: "1Gi"
+          bind_timeout_s: 120
+          namespace_prefix: "isvtest-csi-types"
+        K8sCsiStorageQuotaApiCheck:
+          test_id: "K8S23-07"
+          labels: ["kubernetes", "min_req", "storage"]
+          storage_class: "oci-bv"
+          total_quota: "10Gi"
+          per_sc_quota: "5Gi"
+          pvc_request: "1Gi"
+          over_quota_request: "100Gi"
+          bind_timeout_s: 120
+          quota_settle_s: 30
+          namespace_prefix: "isvtest-csi-quota"
+        K8sCsiProvisioningModesCheck:
+          test_id: "K8S23-05"
+          labels: ["kubernetes", "min_req", "storage"]
+          dynamic_storage_class: "oci-bv"
+          dynamic_pvc_size: "1Gi"
+          static_pv:
+            volume_handle: ""
+            csi_driver: ""
+            zone: ""
+            fs_type: "ext4"
+            capacity: "1Gi"
+            access_mode: "ReadWriteOnce"
+          bind_timeout_s: 180
+          namespace_prefix: "isvtest-csi-prov"
+
+    k8s_filesystem:
+      checks:
+        K8sFileLockingCheck:
+          test_id: "HSS14-02"
+          labels: ["kubernetes", "storage"]
+          shared_fs_storage_class: "nfs-client"
+          nfs_storage_class: "nfs-client"
+        K8sCrossNodeWriteVisibilityCheck:
+          test_id: "HSS17-01"
+          labels: ["kubernetes", "storage"]
+          shared_fs_storage_class: "nfs-client"
+          nfs_storage_class: "nfs-client"
+        K8sCrossNodeAttrConsistencyCheck:
+          test_id: "HSS17-02"
+          labels: ["kubernetes", "storage"]
+          shared_fs_storage_class: "nfs-client"
+          nfs_storage_class: "nfs-client"
+        K8sLargeDirListingFilesCheck:
+          test_id: "HSS07-02"
+          labels: ["kubernetes", "storage"]
+          shared_fs_storage_class: "nfs-client"
+          nfs_storage_class: "nfs-client"
+          files_count: 10000
+          pvc_size: "10Gi"
+          timeout: 3600
+        K8sLargeDirListingDirsCheck:
+          test_id: "HSS07-02"
+          labels: ["kubernetes", "storage"]
+          shared_fs_storage_class: "nfs-client"
+          nfs_storage_class: "nfs-client"
+          dirs_count: 500
+          pvc_size: "10Gi"
+          timeout: 3600
+        K8sPosixComplianceCheck:
+          test_id: "DIR02-02"
+          labels: ["kubernetes", "slow", "storage"]
+          shared_fs_storage_class: "nfs-client"
+          nfs_storage_class: "nfs-client"
+          pvc_size: "5Gi"
+          build_timeout_s: 600
+          allowed_failures:
+            - "unlink/14.t"
+
+  exclude:
+    tests: []

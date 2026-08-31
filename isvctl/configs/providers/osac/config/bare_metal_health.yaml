@@ -1,0 +1,99 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+# http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+# OSAC Bare Metal Health Validation Configuration
+#
+# Standalone config for host-level health checks that query the OCP node
+# directly (no BMI lifecycle required). Uses K8s node conditions,
+# Prometheus metrics, and oc adm node-logs.
+#
+# Implemented checks:
+#   BMAAS07-01: BmHostStatusLogCheck (journalctl + dmesg freshness)
+#   CAP05-01:   HostHealthCheck (per-host health via K8s + Prometheus)
+#
+# Usage:
+#   KUBECONFIG=/path/to/kubeconfig \
+#   ISVTEST_INCLUDE_UNRELEASED=1 \
+#   uv run isvctl test run -f isvctl/configs/providers/osac/config/bare_metal_health.yaml
+
+import:
+  - ../../../suites/bare_metal.yaml
+
+version: "1.0"
+
+commands:
+  bare_metal:
+    phases: ["test"]
+    steps:
+      - name: host_status_log
+        phase: test
+        command: "python3 ../scripts/bare_metal/host_status_log.py"
+        args:
+          - "--max-age-seconds"
+          - "600"
+        timeout: 120
+
+      - name: query_host_health
+        phase: test
+        command: "python3 ../scripts/bare_metal/query_host_health.py"
+        args:
+          - "--site-id"
+          - "osac-dev"
+        timeout: 120
+
+      - name: query_health_aggregation
+        phase: test
+        command: "python3 ../scripts/bare_metal/query_health_aggregation.py"
+        args:
+          - "--site-id"
+          - "osac-dev"
+        timeout: 120
+
+      - name: verify_ingestion
+        phase: test
+        command: "python3 ../scripts/bare_metal/verify_ingestion.py"
+        args:
+          - "--site-id"
+          - "osac-dev"
+          - "--namespace"
+          - "host-inventory"
+        timeout: 120
+
+tests:
+  cluster_name: "osac-bm-health"
+  description: "OSAC bare metal: host health and status log checks (OCP node)"
+
+  settings:
+    region: "osac-default"
+
+  exclude:
+    labels:
+      - "gpu"
+      - "ssh"
+      - "dpu"
+      - "governance"
+      - "infiniband"
+      - "breakfix"
+      - "sds_controller"
+      - "attestation"
+      - "firmware"
+      - "iam"
+      - "vm"
+      - "network"
+      - "workload"
+      - "slow"
+    tests:
+      - "BmHostSoftwareCheck"
+      - "BmCpuInfoCheck"

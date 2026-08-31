@@ -1,0 +1,64 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+# http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+# OSAC Capacity Reservation Validation Configuration
+#
+# Tests capacity reservation grouping and topology block atomic allocation
+# using K8s ResourceQuota and Deployment with topology spread constraints.
+#
+# Implemented checks:
+#   CAP04-01: CapacityReservationGroupingCheck — ResourceQuota as reservation
+#   CAP04-02: CapacityTopologyBlockAtomicAllocationCheck — Deployment topology
+#
+# Usage:
+#   ISVTEST_INCLUDE_UNRELEASED=1 \
+#   uv run isvctl test run -f isvctl/configs/providers/osac/config/capacity.yaml \
+#     --capability vm --capability bare_metal
+
+import:
+  - ../../../suites/security.yaml
+
+version: "1.0"
+
+commands:
+  security:
+    phases: ["test"]
+    steps:
+      - name: capacity_reservation_grouping
+        phase: test
+        command: "python3 ../scripts/security/capacity_reservation_grouping.py"
+        timeout: 120
+        continue_on_failure: true
+
+      - name: topology_block_atomic_allocation
+        phase: test
+        command: "python3 ../scripts/security/topology_block_atomic_allocation.py"
+        timeout: 300
+        continue_on_failure: true
+
+tests:
+  cluster_name: "osac-capacity"
+  description: "OSAC capacity: reservation grouping and topology block allocation"
+
+  settings:
+    region: "osac-default"
+
+  exclude:
+    labels:
+      - "gpu"
+      - "workload"
+      - "slow"
+      - "network"
+      - "iam"

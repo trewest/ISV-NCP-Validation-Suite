@@ -1,0 +1,41 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+# OSAC NVLink Domain Check
+#
+# Detects NVLink support and domain ID on a GPU node via GPU Operator.
+#
+# Requires:
+#   - NVIDIA GPU Operator with driver daemonset
+#   - GPU node with NVLink (e.g. p4d.24xlarge, p5.48xlarge)
+#
+# Check:
+#   NET02-02: NvlinkDomainCheck — NVLink domain ID detection
+#
+# Usage:
+#   KUBECONFIG=/path/to/kubeconfig \
+#   ISVTEST_INCLUDE_UNRELEASED=1 \
+#   uv run isvctl test run -f isvctl/configs/providers/osac/config/k8s-nvlink-domain.yaml --capability vm
+
+import:
+  - ../../../suites/network.yaml
+
+version: "1.0"
+
+commands:
+  kubernetes:
+    phases: ["test"]
+    steps:
+      - name: nvlink_domain
+        phase: test
+        command: "python3 ../scripts/network/nvlink_domain_test.py"
+        output_schema: generic
+        timeout: 60
+
+tests:
+  cluster_name: "osac-gpu"
+  description: "OSAC NVLink domain detection on GPU node"
+
+  include:
+    tests:
+      - "NvlinkDomainCheck"

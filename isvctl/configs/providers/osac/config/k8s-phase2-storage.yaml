@@ -1,0 +1,60 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+# http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+# OSAC Phase 2 Storage Validation — Flock Mount + Home Directory
+#
+# Validates:
+#   HSS14-01 — flock mount (exclusive, shared, contention)
+#   DIR01-01 — filesystem quotas (configure, update, enforce)
+#   DIR01-02 — per-UID/GID usage accounting
+#   DIR02-01 — NFSv4 shared-storage availability
+#
+# Prerequisites:
+#   - NFS server running in nfs-system namespace with /exports share
+#   - kubectl access to the cluster
+#
+# Environment Variables:
+#   NFS_SERVER_NS       — NFS server namespace (default: nfs-system)
+#   NFS_SERVER_DEPLOY   — NFS server deployment ref (default: deployment/nfs-server)
+#   NFS_EXPORT_PATH     — NFS export path (default: /exports)
+#
+# Usage:
+#   KUBECONFIG=~/.kube/osac-gpu-oci11.kubeconfig \
+#     uv run isvctl test run -f isvctl/configs/providers/osac/config/k8s-phase2-storage.yaml
+
+import:
+  - ../../../suites/storage.yaml
+
+version: "1.0"
+
+commands:
+  storage:
+    phases: ["setup", "test", "teardown"]
+    steps:
+      - name: flock_mount
+        phase: test
+        command: "python3 ../scripts/storage/flock_mount.py"
+        timeout: 480
+      - name: home_directory_storage
+        phase: test
+        command: "python3 ../scripts/storage/home_directory_storage.py"
+        timeout: 600
+
+tests:
+  cluster_name: "osac-phase2-storage-validation"
+  description: "OSAC Phase 2: flock mount + home directory storage"
+
+  settings:
+    region: "osac-default"

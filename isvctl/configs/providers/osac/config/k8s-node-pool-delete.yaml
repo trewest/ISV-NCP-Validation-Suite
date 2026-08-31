@@ -1,0 +1,110 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+# http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+# OSAC K8s Node Pool Deletion Validation
+#
+# Standalone config for K8sNodePoolDeletedCheck (K8S06-03).
+# Creates a throwaway node pool in setup, deletes it in the test phase,
+# then validates that all nodes drain to zero.
+#
+# This must run separately from the create/scale config because the
+# framework runs all test-phase steps before validations — combining
+# delete + scale in one run would invalidate the scale validation.
+#
+# Requires 1 available BareMetalHost in openshift-machine-api namespace.
+#
+# Usage:
+#   KUBECONFIG=/path/to/kubeconfig \
+#   ISVTEST_INCLUDE_UNRELEASED=1 \
+#   uv run isvctl test run -f isvctl/configs/providers/osac/config/k8s-node-pool-delete.yaml
+
+import:
+  - ../../../suites/k8s.yaml
+
+version: "1.0"
+
+commands:
+  kubernetes:
+    phases: ["setup", "test", "teardown"]
+    steps:
+      - name: create_test_delete_node_pool
+        phase: setup
+        command: "python3 ../../ocp/scripts/k8s/create_node_pool.py"
+        output_schema: node_pool
+        timeout: 1800
+        env:
+          OCP_NODE_POOL_NAME: "isv-delete-pool"
+          OCP_NODE_POOL_REPLICAS: "1"
+          OCP_NODE_POOL_LABELS_JSON: '{"isv.ncp.validation/workload":"delete-test"}'
+          OCP_NODE_POOL_TAINTS_JSON: '[{"key":"isv.ncp.validation/dedicated","value":"delete-test","effect":"NoSchedule"}]'
+          OCP_NODE_POOL_NODE_TYPE: "cpu"
+
+      - name: delete_test_node_pool
+        phase: test
+        command: "python3 ../../ocp/scripts/k8s/destroy_node_pool.py"
+        timeout: 600
+        env:
+          OCP_NODE_POOL_NAME: "isv-delete-pool"
+
+      - name: teardown_delete_pool
+        phase: teardown
+        command: "python3 ../../ocp/scripts/k8s/destroy_node_pool.py"
+        timeout: 600
+        env:
+          OCP_NODE_POOL_NAME: "isv-delete-pool"
+
+tests:
+  cluster_name: "osac-node-pool-delete"
+  description: "OSAC K8s node pool deletion: create then delete to zero"
+
+  settings:
+    region: "osac-default"
+
+  exclude:
+    labels:
+      - "gpu"
+      - "nfs"
+      - "object_storage"
+      - "kms"
+      - "hss"
+      - "nim"
+      - "workload"
+    tests:
+      - "K8sCpuNodePoolCreatedCheck"
+      - "K8sGpuNodePoolCreatedCheck"
+      - "K8sNodePoolScaledCheck"
+      - "K8sNodeCountCheck"
+      - "K8sGpuDevicePluginCheck"
+      - "K8sGpuSchedulableCheck"
+      - "K8sGpuWorkloadCheck"
+      - "K8sGpuTimeSlicingCheck"
+      - "K8sGpuMpsCheck"
+      - "K8sGpuMigCheck"
+      - "K8sGpuDriverVersionCheck"
+      - "K8sMultiClusterSameVpcCheck"
+      - "K8sClusterAutoscalerCheck"
+      - "K8sControlPlaneLogsCheck"
+      - "K8sApiAuditTrailCheck"
+      - "K8sApiNetworkAclCheck"
+      - "K8sCsiDriverHealthCheck"
+      - "K8sCsiStorageTypesCheck"
+      - "K8sCsiStorageQuotaApiCheck"
+      - "K8sCsiProvisioningModesCheck"
+      - "K8sCsiConcurrentPvcCheck"
+      - "K8sCsiPvcExpandCheck"
+      - "K8sCsiTenantScopedCredentialsCheck"
+      - "K8sPodHealthCheck"
+      - "K8sNoErrorPodsCheck"
+      - "K8sConformanceCheck"

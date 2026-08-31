@@ -186,15 +186,9 @@ def _evaluate_audit_entries(
     ]
 
     sg_verbs = {
-        e.get("verb")
-        for e in sg_entries
-        if "securitygroup" in e.get("objectRef", {}).get("resource", "").lower()
+        e.get("verb") for e in sg_entries if "securitygroup" in e.get("objectRef", {}).get("resource", "").lower()
     }
-    np_verbs = {
-        e.get("verb")
-        for e in sg_entries
-        if e.get("objectRef", {}).get("resource") == "networkpolicies"
-    }
+    np_verbs = {e.get("verb") for e in sg_entries if e.get("objectRef", {}).get("resource") == "networkpolicies"}
 
     results: dict[str, dict[str, Any]] = {}
 

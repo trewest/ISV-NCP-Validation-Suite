@@ -1,0 +1,53 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+# http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+# OSAC Image Registry — Custom OS Image Upload
+#
+# Uploads a containerDisk image to OCP's internal registry via ImageStream
+# and verifies the image ID, storage bucket (namespace), and disk layer IDs.
+#
+# Implemented checks:
+#   BOOT01-01: CustomOsImageUploadedCheck — image uploaded with disk IDs
+#
+# Usage:
+#   ISVTEST_INCLUDE_UNRELEASED=1 \
+#   uv run isvctl test run -f isvctl/configs/providers/osac/config/image-upload.yaml
+
+import:
+  - ../../../suites/image-registry.yaml
+
+version: "1.0"
+
+commands:
+  image_registry:
+    phases: ["test"]
+    steps:
+      - name: upload_image
+        phase: test
+        command: "python3 ../scripts/image_registry/upload_image_osac.py"
+        timeout: 180
+
+tests:
+  cluster_name: "osac-image-upload"
+  description: "OSAC image registry: custom OS image upload"
+
+  settings:
+    region: "osac-default"
+
+  exclude:
+    labels:
+      - "gpu"
+      - "workload"
+      - "slow"

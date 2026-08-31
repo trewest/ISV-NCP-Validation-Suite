@@ -46,7 +46,9 @@ def generate_ssh_key(key_dir: str) -> tuple[str, str]:
     key_path = os.path.join(key_dir, "osac_net_bmi_key")
     subprocess.run(
         ["ssh-keygen", "-t", "ed25519", "-N", "", "-f", key_path],
-        capture_output=True, timeout=30, check=True,
+        capture_output=True,
+        timeout=30,
+        check=True,
     )
     with open(f"{key_path}.pub") as fh:
         pub_key = fh.read().strip()
@@ -70,14 +72,16 @@ def extract_external_ip(body: dict[str, Any]) -> str | None:
 def get_bmh_ip(bmi_id: str, operator_ns: str) -> str | None:
     try:
         import shutil
+
         kubectl = shutil.which("kubectl") or shutil.which("oc")
         if not kubectl:
             return None
         crd_name = f"bmi-{bmi_id}"
         r = subprocess.run(
-            [kubectl, "get", "baremetalinstance", crd_name, "-n", operator_ns,
-             "-o", "jsonpath={.spec.externalHostID}"],
-            capture_output=True, text=True, timeout=15,
+            [kubectl, "get", "baremetalinstance", crd_name, "-n", operator_ns, "-o", "jsonpath={.spec.externalHostID}"],
+            capture_output=True,
+            text=True,
+            timeout=15,
         )
         if r.returncode != 0 or not r.stdout.strip():
             return None
@@ -86,9 +90,10 @@ def get_bmh_ip(bmi_id: str, operator_ns: str) -> str | None:
             return None
         bmh_ns, bmh_name = parts
         r2 = subprocess.run(
-            [kubectl, "get", "baremetalhost", bmh_name, "-n", bmh_ns,
-             "-o", "jsonpath={.status.hardware.nics[0].ip}"],
-            capture_output=True, text=True, timeout=15,
+            [kubectl, "get", "baremetalhost", bmh_name, "-n", bmh_ns, "-o", "jsonpath={.status.hardware.nics[0].ip}"],
+            capture_output=True,
+            text=True,
+            timeout=15,
         )
         ip = r2.stdout.strip()
         return ip if ip else None
@@ -116,16 +121,18 @@ def main() -> int:
     }
 
     if DEMO_MODE:
-        result.update({
-            "success": True,
-            "instance_a_id": "demo-bmi-net-a",
-            "instance_b_id": "demo-bmi-net-b",
-            "external_ip_a": "192.168.160.201",
-            "external_ip_b": "192.168.160.202",
-            "bmh_ip_a": "192.168.160.201",
-            "bmh_ip_b": "192.168.160.202",
-            "key_file": "/tmp/demo-net-bmi.pem",
-        })
+        result.update(
+            {
+                "success": True,
+                "instance_a_id": "demo-bmi-net-a",
+                "instance_b_id": "demo-bmi-net-b",
+                "external_ip_a": "192.168.160.201",
+                "external_ip_b": "192.168.160.202",
+                "bmh_ip_a": "192.168.160.201",
+                "bmh_ip_b": "192.168.160.202",
+                "key_file": "/tmp/demo-net-bmi.pem",
+            }
+        )
         print(json.dumps(result, indent=2))
         return 0
 
@@ -140,19 +147,25 @@ def main() -> int:
         key_file, pub_key = generate_ssh_key(key_dir)
         result["key_file"] = key_file
 
-        catalog_item_id = (
-            os.environ.get("OSAC_CATALOG_ITEM", "") or client.get_baremetal_catalog_item_id()
-        )
+        catalog_item_id = os.environ.get("OSAC_CATALOG_ITEM", "") or client.get_baremetal_catalog_item_id()
 
         suffix = f"{int(time.time()) % 0xFFFF:04x}"
 
         # Launch BMI-A
-        s, b = client.create_bare_metal_instance({
-            "metadata": {"name": f"isv-net-bmi-a-{suffix}",
-                         "labels": {"name": "isv-net-validation", "created-by": "isv-validation"}},
-            "spec": {"catalog_item": {"id": catalog_item_id}, "ssh_public_key": pub_key,
-                     "auto_external_ip_attachment": True, "run_strategy": RUN_STRATEGY_ALWAYS},
-        })
+        s, b = client.create_bare_metal_instance(
+            {
+                "metadata": {
+                    "name": f"isv-net-bmi-a-{suffix}",
+                    "labels": {"name": "isv-net-validation", "created-by": "isv-validation"},
+                },
+                "spec": {
+                    "catalog_item": {"id": catalog_item_id},
+                    "ssh_public_key": pub_key,
+                    "auto_external_ip_attachment": True,
+                    "run_strategy": RUN_STRATEGY_ALWAYS,
+                },
+            }
+        )
         if s not in (200, 201):
             result["error"] = f"Create BMI-A failed (HTTP {s}): {b}"
             print(json.dumps(result, indent=2))
@@ -161,12 +174,20 @@ def main() -> int:
         result["instance_a_id"] = bmi_a_id
 
         # Launch BMI-B
-        s, b = client.create_bare_metal_instance({
-            "metadata": {"name": f"isv-net-bmi-b-{suffix}",
-                         "labels": {"name": "isv-net-validation", "created-by": "isv-validation"}},
-            "spec": {"catalog_item": {"id": catalog_item_id}, "ssh_public_key": pub_key,
-                     "auto_external_ip_attachment": True, "run_strategy": RUN_STRATEGY_ALWAYS},
-        })
+        s, b = client.create_bare_metal_instance(
+            {
+                "metadata": {
+                    "name": f"isv-net-bmi-b-{suffix}",
+                    "labels": {"name": "isv-net-validation", "created-by": "isv-validation"},
+                },
+                "spec": {
+                    "catalog_item": {"id": catalog_item_id},
+                    "ssh_public_key": pub_key,
+                    "auto_external_ip_attachment": True,
+                    "run_strategy": RUN_STRATEGY_ALWAYS,
+                },
+            }
+        )
         if s not in (200, 201):
             result["error"] = f"Create BMI-B failed (HTTP {s}): {b}"
             print(json.dumps(result, indent=2))

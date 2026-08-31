@@ -255,7 +255,7 @@ commands:
         args:
           - "--region"
           - "{{region}}"
-        timeout: 60
+        timeout: 120
         output_schema: teardown
 
 tests:

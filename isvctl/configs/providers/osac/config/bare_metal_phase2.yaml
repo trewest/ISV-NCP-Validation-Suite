@@ -1,0 +1,125 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+# http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+# OSAC Bare Metal Phase 2 Validation Configuration
+#
+# Standalone config for bare-metal infrastructure checks that query the OCP
+# cluster directly (no BMI lifecycle required). Covers failure-domain
+# topology, stable admin IPs, governance metrics, hardware serial numbers,
+# and north-south network telemetry.
+#
+# Implemented checks:
+#   STG05-01: FailureDomainObservabilityCheck (failure-domain topology per host)
+#   STG03-01: StableStorageNodeIpCheck (stable admin IP per host)
+#   CAP01-01: GovernanceMetricsCheck (delivered/healthy/reserved/active counts)
+#   BFX03-01: BmHardwareSerialCheck (hardware serial numbers per component)
+#   OBS06-01: NorthSouthNetworkTelemetryCheck (ingress/egress telemetry via Prometheus)
+#
+# Usage:
+#   KUBECONFIG=/path/to/kubeconfig \
+#   ISVTEST_INCLUDE_UNRELEASED=1 \
+#   uv run isvctl test run -f isvctl/configs/providers/osac/config/bare_metal_phase2.yaml
+
+import:
+  - ../../../suites/bare_metal.yaml
+
+version: "1.0"
+
+commands:
+  bare_metal:
+    phases: ["test"]
+    steps:
+      - name: query_topology
+        phase: test
+        command: "python3 ../scripts/bare_metal/query_topology.py"
+        args:
+          - "--site-id"
+          - "ocp-edge-ci-phase2"
+        timeout: 120
+
+      - name: query_stable_ips
+        phase: test
+        command: "python3 ../scripts/bare_metal/query_stable_ips.py"
+        args:
+          - "--site-id"
+          - "ocp-edge-ci-phase2"
+        timeout: 120
+
+      - name: query_governance_metrics
+        phase: test
+        command: "python3 ../scripts/bare_metal/query_governance_metrics.py"
+        args:
+          - "--site-id"
+          - "ocp-edge-ci-phase2"
+        timeout: 120
+
+      - name: query_serial_numbers
+        phase: test
+        command: "python3 ../scripts/bare_metal/query_serial_numbers.py"
+        args:
+          - "--site-id"
+          - "ocp-edge-ci-phase2"
+        timeout: 120
+
+      - name: north_south_network_telemetry
+        phase: test
+        command: "python3 ../scripts/bare_metal/query_network_telemetry.py"
+        args:
+          - "--site-id"
+          - "ocp-edge-ci-phase2"
+        timeout: 120
+
+tests:
+  cluster_name: "osac-bm-phase2"
+  description: "OSAC bare metal phase 2: topology, stable IPs, governance, serial numbers, N-S telemetry"
+
+  settings:
+    region: "osac-default"
+
+  validations:
+    governance_metrics:
+      checks:
+        GovernanceMetricsCheck:
+          min_delivered_nodes: 1
+
+    failure_domain_observability:
+      checks:
+        FailureDomainObservabilityCheck:
+          min_failure_domains: 1
+
+    north_south_telemetry:
+      step: north_south_network_telemetry
+      checks:
+        NorthSouthNetworkTelemetryCheck:
+          test_id: "OBS06-01"
+
+  exclude:
+    labels:
+      - "gpu"
+      - "ssh"
+      - "dpu"
+      - "infiniband"
+      - "attestation"
+      - "firmware"
+      - "iam"
+      - "vm"
+      - "slow"
+      - "workload"
+      - "sanitization"
+      - "health"
+      - "ingestion"
+    tests:
+      - "BmHostSoftwareCheck"
+      - "BmCpuInfoCheck"

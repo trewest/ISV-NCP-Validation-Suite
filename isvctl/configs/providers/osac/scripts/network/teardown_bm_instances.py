@@ -71,8 +71,7 @@ def main() -> int:
 
         # Issue both deletes first, then wait for both — avoids sequential timeout doubling.
         pending = []
-        for attr, bmi_id in [("deleted_a", args.instance_a_id),
-                               ("deleted_b", args.instance_b_id)]:
+        for attr, bmi_id in [("deleted_a", args.instance_a_id), ("deleted_b", args.instance_b_id)]:
             if not bmi_id:
                 result[attr] = True
                 continue

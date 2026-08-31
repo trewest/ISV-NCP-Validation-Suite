@@ -50,10 +50,14 @@ def _ssh_cmd(key_file: str, external_ip: str, remote_cmd: str, timeout: int = 30
         proc = subprocess.run(
             [
                 "ssh",
-                "-i", key_file,
-                "-o", "StrictHostKeyChecking=no",
-                "-o", "ConnectTimeout=10",
-                "-o", "BatchMode=yes",
+                "-i",
+                key_file,
+                "-o",
+                "StrictHostKeyChecking=no",
+                "-o",
+                "ConnectTimeout=10",
+                "-o",
+                "BatchMode=yes",
                 f"{SSH_USER}@{external_ip}",
                 remote_cmd,
             ],
@@ -82,9 +86,9 @@ def test_ssh_reachable(key_file: str, external_ip: str) -> dict[str, Any]:
 def test_ping_gateway(key_file: str, external_ip: str) -> dict[str, Any]:
     """Ping the default gateway from the BMI."""
     rc, stdout, _stderr = _ssh_cmd(
-        key_file, external_ip,
-        "gw=$(ip route | awk '/default/ {print $3}' | head -1) && "
-        "echo \"gateway=$gw\" && ping -c 3 -W 5 \"$gw\"",
+        key_file,
+        external_ip,
+        'gw=$(ip route | awk \'/default/ {print $3}\' | head -1) && echo "gateway=$gw" && ping -c 3 -W 5 "$gw"',
         timeout=30,
     )
     if rc == 0:
@@ -100,7 +104,8 @@ def test_ping_gateway(key_file: str, external_ip: str) -> dict[str, Any]:
 def test_dns_resolution(key_file: str, external_ip: str) -> dict[str, Any]:
     """Test DNS resolution from the BMI."""
     rc, stdout, stderr = _ssh_cmd(
-        key_file, external_ip,
+        key_file,
+        external_ip,
         "nslookup google.com 2>&1 || host google.com 2>&1 || getent hosts google.com 2>&1",
         timeout=15,
     )

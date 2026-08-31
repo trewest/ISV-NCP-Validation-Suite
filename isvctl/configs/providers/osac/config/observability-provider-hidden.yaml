@@ -1,0 +1,95 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+# OSAC Provider-Hidden Observability Checks
+#
+# Passes observability checks where the underlying hardware plane
+# (BMC, physical switch, InfiniBand, UFM) is not exposed to tenants
+# in an OCP-based cloud.  OCP manages these planes internally.
+#
+# Checks:
+#   OBS17-01: BmcSelLogsCheck — BMC SEL logs (provider-hidden)
+#   TELEM04-01: BmcGpuTelemetryCheck — BMC GPU telemetry (provider-hidden)
+#   TELEM08-01: SwitchNvlinkTelemetryCheck — Switch NVLink telemetry (provider-hidden)
+#   OBS12-01: SubnetManagerLogsCheck — Subnet Manager logs (provider-hidden)
+#   OBS13-01: UfmEventLogsCheck — UFM event logs (provider-hidden)
+#   OBS14-01: GeneralSwitchLogsCheck — General switch logs (provider-hidden)
+#   OBS15-01: SwitchSyslogCheck — Switch syslog (provider-hidden)
+#   OBS16-01: SwitchKernelLogsCheck — Switch kernel logs (provider-hidden)
+#
+# Usage:
+#   ISVTEST_INCLUDE_UNRELEASED=1 \
+#   uv run isvctl test run -f isvctl/configs/providers/osac/config/observability-provider-hidden.yaml
+
+import:
+  - ../../../suites/observability.yaml
+
+version: "1.0"
+
+commands:
+  kubernetes:
+    phases: ["test"]
+    best_effort: true
+    steps:
+      - name: bmc_sel_logs
+        phase: test
+        command: "python3 ../scripts/observability/provider_hidden_probes.py --aspect bmc_sel_logs"
+        output_schema: generic
+        timeout: 10
+
+      - name: bmc_gpu_telemetry
+        phase: test
+        command: "python3 ../scripts/observability/provider_hidden_probes.py --aspect bmc_gpu_telemetry"
+        output_schema: generic
+        timeout: 10
+
+      - name: switch_nvlink_telemetry
+        phase: test
+        command: "python3 ../scripts/observability/provider_hidden_probes.py --aspect switch_nvlink_telemetry"
+        output_schema: generic
+        timeout: 10
+
+      - name: subnet_manager_logs
+        phase: test
+        command: "python3 ../scripts/observability/provider_hidden_probes.py --aspect subnet_manager_logs"
+        output_schema: generic
+        timeout: 10
+
+      - name: ufm_event_logs
+        phase: test
+        command: "python3 ../scripts/observability/provider_hidden_probes.py --aspect ufm_event_logs"
+        output_schema: generic
+        timeout: 10
+
+      - name: general_switch_logs
+        phase: test
+        command: "python3 ../scripts/observability/provider_hidden_probes.py --aspect general_switch_logs"
+        output_schema: generic
+        timeout: 10
+
+      - name: switch_syslogs
+        phase: test
+        command: "python3 ../scripts/observability/provider_hidden_probes.py --aspect switch_syslogs"
+        output_schema: generic
+        timeout: 10
+
+      - name: switch_kernel_logs
+        phase: test
+        command: "python3 ../scripts/observability/provider_hidden_probes.py --aspect switch_kernel_logs"
+        output_schema: generic
+        timeout: 10
+
+tests:
+  cluster_name: "osac"
+  description: "OSAC provider-hidden observability: BMC, switch, IB, UFM planes"
+
+  include:
+    tests:
+      - "BmcSelLogsCheck"
+      - "BmcGpuTelemetryCheck"
+      - "SwitchNvlinkTelemetryCheck"
+      - "SubnetManagerLogsCheck"
+      - "UfmEventLogsCheck"
+      - "GeneralSwitchLogsCheck"
+      - "SwitchSyslogCheck"
+      - "SwitchKernelLogsCheck"

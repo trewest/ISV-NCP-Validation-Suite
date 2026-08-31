@@ -1,0 +1,337 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+# http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+# OSAC VM Validation Configuration
+#
+# Imports validations from the provider-agnostic VM canonical config.
+# This file provides OSAC-specific commands that exercise ComputeInstances
+# backed by OpenShift Virtualization (KubeVirt) via the fulfillment REST API.
+#
+# Ephemeral tenants are registered via the fulfillment-service Tenants
+# gRPC API. The setup step creates the full prerequisite stack:
+#   - Tenant (gRPC + K8s CRD + namespace + hub secret)
+#   - InstanceType (private admin API)
+#   - VirtualNetwork + Subnet (fulfillment REST API)
+#   - SA token for tenant-scoped operations
+#
+# Currently implemented:
+#   CNP01-09:  VM created and running (VmCreatedCheck)
+#   AUTH02-01: Launched with specified key (VmLaunchedWithSpecifiedKeyCheck)
+#   CNP01-11:  VM listed (VmListedCheck)
+#   CNP05-02:  VM tagged (VmTaggedCheck)
+#   CNP06-03:  Serial console access (VmSerialConsoleCheck)
+#   CNP01-16:  Console RBAC (VmConsoleRbacCheck)
+#   CNP01-17:  Virtual device hardening (VirtualDeviceHardeningCheck)
+#   AUTH03-01: Component key access (VmComponentKeyAccessCheck)
+#   CNP01-14:  VM stopped (VmStoppedCheck)
+#   CNP01-15:  VM started (VmStartedCheck)
+#   CNP08-03:  Stable identifier after start (VmIdentifierStableAfterStartCheck)
+#   CNP01-13:  VM rebooted (VmRebootedCheck)
+#   N/A:       Teardown (VmResourcesDeletedCheck)
+#
+# Excluded:
+#   ssh:       Requires SSH to guest (pod network is not routable from test runner)
+#   gpu:       Requires GPU passthrough hardware
+#   workload:  Requires SSH + GPU for NIM deployment
+#   slow:      Long-running workload tests
+#
+# Usage:
+#   uv run isvctl test run -f isvctl/configs/providers/osac/config/vm.yaml
+#
+# Required Environment Variables:
+#   OSAC_KEYCLOAK_URL, OSAC_KEYCLOAK_REALM,
+#   OSAC_ADMIN_CLIENT_ID, OSAC_ADMIN_CLIENT_SECRET,
+#   OSAC_FULFILLMENT_URL, OSAC_FULFILLMENT_GRPC_ADDRESS,
+#   Optional: OSAC_VERIFY_SSL, OSAC_TENANT_NAMESPACE, ISVCTL_DEMO_MODE
+#
+# Requires grpcurl and kubectl/oc on PATH.
+
+import:
+  - ../../../suites/vm.yaml
+
+version: "1.0"
+
+commands:
+  vm:
+    phases: ["setup", "test", "teardown"]
+    steps:
+      # =======================================================================
+      # SETUP: Create ephemeral tenant with networking and instance type
+      # =======================================================================
+      - name: setup_vm_tenant
+        phase: setup
+        command: "python3 ../scripts/vm/setup_vm_tenant.py"
+        args:
+          - "--region"
+          - "{{region}}"
+          - "--instance-type"
+          - "{{instance_type}}"
+        timeout: 600
+
+      # =======================================================================
+      # SETUP: Launch ComputeInstance
+      # =======================================================================
+      - name: launch_instance
+        phase: setup
+        command: "python3 ../scripts/vm/launch_instance.py"
+        args:
+          - "--name"
+          - "isv-vm-test"
+          - "--instance-type"
+          - "{{steps.setup_vm_tenant.instance_type_name}}"
+          - "--region"
+          - "{{region}}"
+          - "--subnet-id"
+          - "{{steps.setup_vm_tenant.subnet_id}}"
+          - "--sa-token"
+          - "{{steps.setup_vm_tenant.sa_token}}"
+        sensitive_args: ["--sa-token"]
+        timeout: 700
+
+      # =======================================================================
+      # TEST: List instances
+      # =======================================================================
+      - name: list_instances
+        phase: test
+        command: "python3 ../scripts/vm/list_instances.py"
+        args:
+          - "--vpc-id"
+          - "{{steps.launch_instance.vpc_id}}"
+          - "--instance-id"
+          - "{{steps.launch_instance.instance_id}}"
+          - "--region"
+          - "{{region}}"
+          - "--sa-token"
+          - "{{steps.setup_vm_tenant.sa_token}}"
+        sensitive_args: ["--sa-token"]
+        timeout: 60
+
+      # =======================================================================
+      # TEST: Verify tags
+      # =======================================================================
+      - name: verify_tags
+        phase: test
+        command: "python3 ../scripts/vm/describe_tags.py"
+        args:
+          - "--instance-id"
+          - "{{steps.launch_instance.instance_id}}"
+          - "--region"
+          - "{{region}}"
+          - "--sa-token"
+          - "{{steps.setup_vm_tenant.sa_token}}"
+        sensitive_args: ["--sa-token"]
+        timeout: 60
+
+      # =======================================================================
+      # TEST: Virtual device hardening (CNP01-17)
+      # =======================================================================
+      - name: virtual_device_hardening
+        phase: test
+        continue_on_failure: true
+        command: "python3 ../scripts/vm/virtual_device_hardening.py"
+        args:
+          - "--instance-id"
+          - "{{steps.launch_instance.instance_id}}"
+          - "--region"
+          - "{{region}}"
+          - "--vm-name"
+          - "{{steps.launch_instance.vm_name}}"
+          - "--vm-namespace"
+          - "{{steps.launch_instance.vm_namespace}}"
+        timeout: 60
+
+      # =======================================================================
+      # TEST: Component key access (AUTH03-01)
+      # =======================================================================
+      - name: component_key_access
+        phase: test
+        continue_on_failure: true
+        command: "python3 ../scripts/vm/component_key_access.py"
+        args:
+          - "--instance-id"
+          - "{{steps.launch_instance.instance_id}}"
+          - "--key-name"
+          - "{{steps.launch_instance.key_name}}"
+          - "--region"
+          - "{{region}}"
+          - "--sa-token"
+          - "{{steps.setup_vm_tenant.sa_token}}"
+          - "--vm-name"
+          - "{{steps.launch_instance.vm_name}}"
+          - "--vm-namespace"
+          - "{{steps.launch_instance.vm_namespace}}"
+        sensitive_args: ["--sa-token"]
+        timeout: 60
+
+      # =======================================================================
+      # TEST: Serial console access
+      # =======================================================================
+      - name: serial_console
+        phase: test
+        continue_on_failure: true
+        command: "python3 ../scripts/vm/serial_console.py"
+        args:
+          - "--instance-id"
+          - "{{steps.launch_instance.instance_id}}"
+          - "--region"
+          - "{{region}}"
+          - "--sa-token"
+          - "{{steps.setup_vm_tenant.sa_token}}"
+          - "--tenant-namespace"
+          - "{{steps.setup_vm_tenant.tenant_namespace}}"
+          - "--vm-name"
+          - "{{steps.launch_instance.vm_name}}"
+          - "--vm-namespace"
+          - "{{steps.launch_instance.vm_namespace}}"
+        sensitive_args: ["--sa-token"]
+        timeout: 60
+
+      # =======================================================================
+      # TEST: Console RBAC
+      # =======================================================================
+      - name: console_rbac
+        phase: test
+        continue_on_failure: true
+        command: "python3 ../scripts/vm/console_rbac.py"
+        args:
+          - "--instance-id"
+          - "{{steps.launch_instance.instance_id}}"
+          - "--region"
+          - "{{region}}"
+          - "--sa-token"
+          - "{{steps.setup_vm_tenant.sa_token}}"
+          - "--vm-name"
+          - "{{steps.launch_instance.vm_name}}"
+          - "--vm-namespace"
+          - "{{steps.launch_instance.vm_namespace}}"
+        sensitive_args: ["--sa-token"]
+        timeout: 60
+
+      # =======================================================================
+      # TEST: Stop instance
+      # =======================================================================
+      - name: stop_instance
+        phase: test
+        command: "python3 ../scripts/vm/stop_instance.py"
+        args:
+          - "--instance-id"
+          - "{{steps.launch_instance.instance_id}}"
+          - "--region"
+          - "{{region}}"
+          - "--sa-token"
+          - "{{steps.setup_vm_tenant.sa_token}}"
+          - "--vm-name"
+          - "{{steps.launch_instance.vm_name}}"
+          - "--vm-namespace"
+          - "{{steps.launch_instance.vm_namespace}}"
+        sensitive_args: ["--sa-token"]
+        timeout: 360
+
+      # =======================================================================
+      # TEST: Start instance
+      # =======================================================================
+      - name: start_instance
+        phase: test
+        command: "python3 ../scripts/vm/start_instance.py"
+        args:
+          - "--instance-id"
+          - "{{steps.launch_instance.instance_id}}"
+          - "--region"
+          - "{{region}}"
+          - "--sa-token"
+          - "{{steps.setup_vm_tenant.sa_token}}"
+          - "--vm-name"
+          - "{{steps.launch_instance.vm_name}}"
+          - "--vm-namespace"
+          - "{{steps.launch_instance.vm_namespace}}"
+        sensitive_args: ["--sa-token"]
+        timeout: 700
+
+      # =======================================================================
+      # TEST: Reboot instance
+      # =======================================================================
+      - name: reboot_instance
+        phase: test
+        command: "python3 ../scripts/vm/reboot_instance.py"
+        args:
+          - "--instance-id"
+          - "{{steps.launch_instance.instance_id}}"
+          - "--region"
+          - "{{region}}"
+          - "--sa-token"
+          - "{{steps.setup_vm_tenant.sa_token}}"
+          - "--vm-name"
+          - "{{steps.launch_instance.vm_name}}"
+          - "--vm-namespace"
+          - "{{steps.launch_instance.vm_namespace}}"
+        sensitive_args: ["--sa-token"]
+        timeout: 700
+
+      # Skipped: deploy_nim and teardown_nim require SSH to guest and GPU
+      - name: deploy_nim
+        phase: test
+        skip: true
+        command: "echo skipped"
+        timeout: 10
+
+      - name: teardown_nim
+        phase: teardown
+        skip: true
+        command: "echo skipped"
+        timeout: 10
+
+      # =======================================================================
+      # TEARDOWN: Cleanup all resources
+      # =======================================================================
+      - name: teardown
+        phase: teardown
+        command: "python3 ../scripts/vm/teardown.py"
+        args:
+          - "--region"
+          - "{{region}}"
+          - "--instance-id"
+          - "{{steps.launch_instance.instance_id}}"
+          - "--tenant-name"
+          - "{{steps.setup_vm_tenant.tenant_name}}"
+          - "--tenant-namespace"
+          - "{{steps.setup_vm_tenant.tenant_namespace}}"
+          - "--instance-type-id"
+          - "{{steps.setup_vm_tenant.instance_type_id}}"
+          - "--sa-token"
+          - "{{steps.setup_vm_tenant.sa_token}}"
+        sensitive_args: ["--sa-token"]
+        timeout: 300
+        output_schema: teardown
+
+tests:
+  cluster_name: "osac-vm-validation"
+  description: "OSAC VM: ComputeInstance lifecycle via fulfillment API + KubeVirt"
+
+  settings:
+    region: "osac-default"
+    instance_type: "osac-vm-type"
+    teardown_flag: ""
+
+  validations:
+    tag_checks:
+      checks:
+        VmTaggedCheck:
+          # OSAC uses metadata fields as tags; Name and CreatedBy are always present
+          required_keys: ["Name", "CreatedBy"]
+
+  # Skip SSH-based checks (pod network not routable from test runner),
+  # GPU checks (no GPU passthrough), and workload/slow tests (NIM).
+  exclude:
+    labels: ["ssh", "gpu", "workload", "slow"]

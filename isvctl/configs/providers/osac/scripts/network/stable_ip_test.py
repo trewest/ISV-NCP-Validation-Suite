@@ -27,7 +27,6 @@ import argparse
 import json
 import os
 import sys
-import time
 from pathlib import Path
 from typing import Any
 
@@ -73,7 +72,7 @@ def main() -> int:
         "platform": "network",
         "test_name": "stable_ip_test",
         "tests": {
-            "create_instance": {"passed": True},   # already created by caller
+            "create_instance": {"passed": True},  # already created by caller
             "record_ip": {"passed": False},
             "stop_instance": {"passed": False},
             "start_instance": {"passed": False},
@@ -135,9 +134,7 @@ def main() -> int:
                 result["tests"]["start_instance"]["error"] = f"PATCH ALWAYS HTTP {s}"
                 print(json.dumps(result, indent=2))
                 return 1
-            final_body = client.wait_bare_metal_instance_state(
-                args.instance_id, "running", timeout=START_TIMEOUT
-            )
+            final_body = client.wait_bare_metal_instance_state(args.instance_id, "running", timeout=START_TIMEOUT)
             result["tests"]["start_instance"] = {"passed": True}
             ip_after = extract_external_ip(final_body) or ip_before
 

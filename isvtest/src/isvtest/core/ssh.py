@@ -46,6 +46,7 @@ def get_ssh_client(
     user: str,
     key_path: str,
     timeout: int = 30,
+    port: int = 22,
 ) -> paramiko.SSHClient:
     """Create SSH client connection using paramiko.
 
@@ -54,6 +55,7 @@ def get_ssh_client(
         user: SSH username
         key_path: Path to SSH private key file
         timeout: Connection timeout in seconds
+        port: SSH port (default 22)
 
     Returns:
         Connected paramiko SSHClient instance
@@ -65,6 +67,7 @@ def get_ssh_client(
 
     ssh_client.connect(
         hostname=host,
+        port=port,
         username=user,
         key_filename=key_path,
         timeout=timeout,
@@ -261,11 +264,26 @@ def get_ssh_config(config: dict[str, Any], inventory: dict[str, Any]) -> dict[st
         or vmaas_inv.get("ssh_key_path")
     )
 
+    port = (
+        config.get("ssh_port")
+        or config.get("port")
+        or step_output.get("ssh_port")
+        or step_output.get("port")
+        or ssh_inv.get("port")
+        or vmaas_inv.get("port")
+        or 22
+    )
+    try:
+        port = int(port)
+    except (TypeError, ValueError):
+        port = 22
+
     log.debug(
-        "SSH config resolved: host=%s, user=%s, key=%s (sources: step_output.public_ip=%s, config.host=%s)",
+        "SSH config resolved: host=%s, user=%s, key=%s, port=%s (sources: step_output.public_ip=%s, config.host=%s)",
         host,
         user,
         key_path,
+        port,
         step_output.get("public_ip"),
         config.get("host"),
     )
@@ -274,6 +292,7 @@ def get_ssh_config(config: dict[str, Any], inventory: dict[str, Any]) -> dict[st
         "ssh_host": host,
         "ssh_user": user,
         "ssh_key_path": key_path,
+        "ssh_port": port,
         # Optional metadata
         "gpu_count": config.get("expected_gpus") or vmaas_inv.get("gpu_count") or ssh_inv.get("gpu_count") or 0,
         "gpu_name": vmaas_inv.get("gpu_name") or ssh_inv.get("gpu_name"),

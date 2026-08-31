@@ -1,0 +1,250 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+# http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+# OSAC Observability Validation Configuration
+#
+# Implements telemetry, network telemetry, host syslog, CSI driver health,
+# CSI concurrent PVC, CSI PVC expand, SDN latency/perf logging, and API
+# network ACL checks using OCP Prometheus, K8s node proxy API, and kubectl
+# live probes.
+#
+# Usage:
+#   KUBECONFIG=/path/to/kubeconfig \
+#   uv run isvctl test run -f isvctl/configs/providers/osac/config/observability.yaml
+#
+# Environment Variables:
+#   - KUBECTL: Override kubectl-compatible CLI (default: auto-detect)
+#   - KUBECONFIG: Path to kubeconfig for the target cluster
+#   - ISVCTL_DEMO_MODE: "1" for dummy success output
+#   - ISVTEST_INCLUDE_UNRELEASED: "1" to run unreleased validations
+
+version: "1.0"
+
+commands:
+  observability:
+    phases: ["setup", "test", "teardown"]
+    steps:
+      - name: setup_namespace
+        phase: setup
+        command: "python3 ../scripts/observability/setup_namespace.py"
+        output_schema: generic
+        args:
+          - "--namespace-prefix"
+          - "isvtest-obs"
+        timeout: 60
+
+      - name: storage_capacity_telemetry
+        phase: test
+        command: "python3 ../scripts/observability/storage_telemetry.py"
+        output_schema: generic
+        args:
+          - "--metric-type"
+          - "capacity"
+        timeout: 120
+
+      - name: storage_performance_telemetry
+        phase: test
+        command: "python3 ../scripts/observability/storage_telemetry.py"
+        output_schema: generic
+        args:
+          - "--metric-type"
+          - "performance"
+        timeout: 120
+
+      - name: management_network_telemetry
+        phase: test
+        command: "python3 ../scripts/observability/network_telemetry.py"
+        output_schema: generic
+        args:
+          - "--telemetry-type"
+          - "management"
+        timeout: 120
+
+      - name: east_west_network_telemetry
+        phase: test
+        command: "python3 ../scripts/observability/network_telemetry.py"
+        output_schema: generic
+        args:
+          - "--telemetry-type"
+          - "east-west"
+        timeout: 120
+
+      - name: host_nic_network_telemetry
+        phase: test
+        command: "python3 ../scripts/observability/network_telemetry.py"
+        output_schema: generic
+        args:
+          - "--telemetry-type"
+          - "host-nic"
+        timeout: 120
+
+      - name: host_syslog
+        phase: test
+        command: "python3 ../scripts/observability/host_syslog.py"
+        output_schema: generic
+        args:
+          - "--max-age-seconds"
+          - "600"
+        timeout: 120
+
+      - name: telemetry_delivery_latency
+        phase: test
+        command: "python3 ../scripts/observability/telemetry_delivery_latency.py"
+        output_schema: generic
+        args:
+          - "--namespace"
+          - "{{steps.setup_namespace.namespace}}"
+          - "--max-delivery-seconds"
+          - "{{max_delivery_seconds}}"
+          - "--poll-timeout"
+          - "300"
+        timeout: 600
+
+      - name: sdn_latency_perf_logging
+        phase: test
+        command: "python3 ../scripts/observability/sdn_latency_perf_logging.py"
+        output_schema: generic
+        args:
+          - "--sample-window-seconds"
+          - "600"
+        timeout: 120
+
+      - name: teardown_observability
+        phase: teardown
+        command: "python3 ../scripts/storage/teardown.py"
+        args:
+          - "--namespace"
+          - "{{steps.setup_namespace.namespace}}"
+        timeout: 60
+
+tests:
+  cluster_name: "osac-observability-validation"
+  description: "OSAC observability: telemetry, network telemetry, host syslog, CSI/storage, API ACL"
+
+  settings:
+    max_delivery_seconds: "600"
+
+  validations:
+    telemetry_delivery:
+      step: telemetry_delivery_latency
+      checks:
+        TelemetryDeliveryLatencyCheck:
+          test_id: "OBS05-01"
+          labels: ["observability"]
+          max_delivery_seconds: "{{max_delivery_seconds}}"
+          description: "Check telemetry delivery latency is within threshold"
+
+    storage_capacity_telemetry:
+      step: storage_capacity_telemetry
+      checks:
+        StorageCapacityTelemetryCheck:
+          test_id: "TELEM05-01"
+          labels: ["observability"]
+          description: "Check storage capacity telemetry is available (used/free/total)"
+
+    storage_performance_telemetry:
+      step: storage_performance_telemetry
+      checks:
+        StoragePerformanceTelemetryCheck:
+          test_id: "TELEM06-01"
+          labels: ["observability"]
+          description: "Check storage performance telemetry is available (bandwidth/IOPS/latency)"
+
+    management_network_telemetry:
+      step: management_network_telemetry
+      checks:
+        ManagementNetworkTelemetryCheck:
+          test_id: "TELEM07-01"
+          labels: ["observability"]
+          description: "Check management network telemetry is available via OVS metrics"
+
+    east_west_network_telemetry:
+      step: east_west_network_telemetry
+      checks:
+        EastWestNetworkTelemetryCheck:
+          test_id: "TELEM08-01"
+          labels: ["observability"]
+          description: "Check east-west network telemetry is available via container metrics"
+
+    host_nic_network_telemetry:
+      step: host_nic_network_telemetry
+      checks:
+        HostNicNetworkTelemetryCheck:
+          test_id: "TELEM09-01"
+          labels: ["observability"]
+          description: "Check host NIC network telemetry is available via node-exporter"
+
+    host_syslog:
+      step: host_syslog
+      checks:
+        HostSyslogCheck:
+          test_id: "OBS06-01"
+          labels: ["observability"]
+          description: "Check host syslogs are available and recent via K8s node proxy API"
+
+    csi_driver_health:
+      checks:
+        K8sCsiDriverHealthCheck:
+          test_id: "DATASVC07-01"
+          labels: ["storage"]
+          description: "Check CSI driver is installed and healthy"
+          drivers:
+            - storage_classes: ["lvms-vg1"]
+              workloads:
+                namespace: "openshift-storage"
+                controller:
+                  deployment: "lvms-operator"
+                node:
+                  daemonset: "vg-manager"
+
+    csi_concurrent_pvc:
+      checks:
+        K8sCsiConcurrentPvcCheck:
+          test_id: "DATASVC08-01"
+          labels: ["storage"]
+          description: "Check CSI provisions multiple concurrent PVCs with distinct PVs"
+          storage_class: "lvms-vg1"
+          pvc_count: 2
+          pvc_size: "1Gi"
+          bind_timeout_s: 120
+
+    csi_pvc_expand:
+      checks:
+        K8sCsiPvcExpandCheck:
+          test_id: "DATASVC09-01"
+          labels: ["storage"]
+          description: "Check CSI PVC expansion updates PV and filesystem size"
+          storage_class: "lvms-vg1"
+          initial_size: "1Gi"
+          expanded_size: "2Gi"
+          expand_timeout_s: 180
+
+    sdn_latency_perf_logging:
+      step: sdn_latency_perf_logging
+      checks:
+        SdnLatencyPerfLoggingCheck:
+          test_id: "SDN09-02"
+          labels: ["network"]
+          description: "Check SDN latency/performance logging via OCP Prometheus"
+
+    api_network_acl:
+      checks:
+        K8sApiNetworkAclCheck:
+          test_id: "SEC15-01"
+          labels: ["security"]
+          description: "Check K8s API is protected by network access controls"
+          commands:
+            unauthorized_probe: "kubectl --as=system:anonymous --as-group=system:unauthenticated get namespaces"
+          probe_timeout_s: 15

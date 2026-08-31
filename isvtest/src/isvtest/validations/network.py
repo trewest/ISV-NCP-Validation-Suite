@@ -986,7 +986,6 @@ class SdnFilterAuditTrailCheck(BaseValidation):
         )
 
 
-
 def _coerce_nonnegative_float(value: object, field_name: str) -> tuple[float | None, str | None]:
     """Return a non-negative float value or an error string."""
     if isinstance(value, bool):

@@ -151,6 +151,7 @@ class ConnectivityCheck(BaseValidation):
         host = ssh_cfg["ssh_host"]
         user = ssh_cfg["ssh_user"]
         key_path = ssh_cfg["ssh_key_path"]
+        port = ssh_cfg.get("ssh_port", 22)
 
         if not host:
             self.set_failed("Missing 'host' in config")
@@ -162,12 +163,12 @@ class ConnectivityCheck(BaseValidation):
             self.set_failed(f"SSH key file not found: {key_path}")
             return
 
-        self.log.info(f"Testing SSH to {host} as {user}")
+        self.log.info(f"Testing SSH to {host}:{port} as {user}")
 
         ssh = None
         try:
-            ssh = get_ssh_client(host, user, key_path)
-            self.report_subtest("ssh_connect", True, f"Connected to {host}")
+            ssh = get_ssh_client(host, user, key_path, port=port)
+            self.report_subtest("ssh_connect", True, f"Connected to {host}:{port}")
 
             # Test command execution
             exit_code, stdout, _ = run_ssh_command(ssh, "echo 'test'")
@@ -232,6 +233,7 @@ class OsCheck(BaseValidation):
         host = ssh_cfg["ssh_host"]
         user = ssh_cfg["ssh_user"]
         key_path = ssh_cfg["ssh_key_path"]
+        port = ssh_cfg.get("ssh_port", 22)
         expected_os = self.config.get("expected_os", "").lower()
 
         if not host or not key_path:
@@ -239,7 +241,7 @@ class OsCheck(BaseValidation):
             return
 
         try:
-            ssh = get_ssh_client(host, user, key_path)
+            ssh = get_ssh_client(host, user, key_path, port=port)
             try:
                 # Get OS info
                 exit_code, stdout, _ = run_ssh_command(ssh, "cat /etc/os-release")

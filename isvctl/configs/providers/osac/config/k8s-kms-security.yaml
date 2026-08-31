@@ -1,0 +1,65 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+# http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+# OSAC KMS Security Validation — Vault Transit Engine
+#
+# Validates KMS encryption capabilities (SEC09-02/03/04) via HashiCorp
+# Vault Transit engine deployed on the cluster.
+# Vault must be pre-deployed with Transit engine enabled and two keys
+# created: provider-managed-key and customer-managed-key
+# (see deploy-test-services.sh).
+#
+# Prerequisites:
+#   - Vault deployment in vault namespace with Transit engine enabled
+#   - Two Transit keys: provider-managed-key, customer-managed-key
+#
+# Environment Variables:
+#   VAULT_NS      — Vault namespace (default: vault)
+#   VAULT_DEPLOY  — Vault deployment ref (default: deployment/vault)
+#
+# Usage:
+#   KUBECONFIG=~/.kube/osac-gpu-oci11.kubeconfig \
+#     uv run isvctl test run -f isvctl/configs/providers/osac/config/k8s-kms-security.yaml
+
+import:
+  - ../../../suites/security.yaml
+
+version: "1.0"
+
+commands:
+  security:
+    phases: ["setup", "test", "teardown"]
+    steps:
+      - name: kms_encryption_options_test
+        phase: test
+        command: "python3 ../scripts/security/kms_encryption_options_test.py"
+        timeout: 120
+
+      - name: centralized_kms_test
+        phase: test
+        command: "python3 ../scripts/security/centralized_kms_test.py"
+        timeout: 120
+
+      - name: customer_managed_key_test
+        phase: test
+        command: "python3 ../scripts/security/customer_managed_key_test.py"
+        timeout: 120
+
+tests:
+  cluster_name: "osac-kms-security-validation"
+  description: "OSAC KMS security: Vault Transit encryption options"
+
+  settings:
+    region: "osac-default"
