@@ -79,6 +79,7 @@ def test_nico_nvl72_config_wires_read_only_platform_checks() -> None:
     assert validations["node_health_agents"]["step"] == "query_node_health_agents"
     assert "OobFailureDetectionCheck" in validations["oob_failure_detection"]["checks"]
     assert "OobFailureDetectionCheck" in _config()["tests"]["exclude"]["tests"]
+    assert "FailureDomainObservabilityCheck" in _config()["tests"]["exclude"]["tests"]
 
 
 def test_nico_nvl72_config_wires_target_inventory_checks() -> None:

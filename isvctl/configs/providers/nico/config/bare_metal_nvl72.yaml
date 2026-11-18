@@ -189,3 +189,6 @@ tests:
       # NICo's current health projection has no BmcSensor/failure-category
       # taxonomy for this host, so do not claim the full STG04 contract yet.
       - "OobFailureDetectionCheck"
+      # This deployment does not expose rack/enclosure placement for the target
+      # machine, so no failure domain can be asserted without inventing data.
+      - "FailureDomainObservabilityCheck"
