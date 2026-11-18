@@ -68,8 +68,10 @@ def test_nico_nvl72_host_probe_wires_four_gpu_and_driver_checks() -> None:
 
 def test_nico_nvl72_config_wires_read_only_platform_checks() -> None:
     """DPU/OOB/telemetry checks use dedicated read-only provider steps."""
+    steps = {step["name"]: step for step in _config()["commands"]["bare_metal"]["steps"]}
     validations = _config()["tests"]["validations"]
 
+    assert steps["query_switch_firmware"]["command"] == "python3 ../scripts/breakfix/query_switch_firmware.py"
     assert validations["dpu_health"]["step"] == "check_dpu_health"
     assert validations["dpu_health"]["checks"]["BmDpuHealthCheck"]["expected_dpu_count"] == 1
     assert validations["dpu_health"]["checks"]["BmDpuHealthCheck"]["require_heartbeat"] is True
