@@ -32,31 +32,37 @@ commands:
     steps:
       - name: nvl72_host_probe
         phase: test
+        continue_on_failure: true
         command: "python3 ../scripts/bare_metal/host_probe.py"
         timeout: 60
 
       - name: check_dpu_health
         phase: test
+        continue_on_failure: true
         command: "python3 ../scripts/bare_metal/check_dpu_health.py"
         timeout: 120
 
       - name: query_oob_health
         phase: test
+        continue_on_failure: true
         command: "python3 ../scripts/bare_metal/query_oob_health.py"
         timeout: 120
 
       - name: query_switch_firmware
         phase: test
+        continue_on_failure: true
         command: "python3 ../scripts/bare_metal/query_switch_firmware.py"
         timeout: 120
 
       - name: query_bmc_kernel_logs
         phase: test
+        continue_on_failure: true
         command: "python3 ../scripts/bare_metal/query_bmc_kernel_logs.py"
         timeout: 60
 
       - name: query_node_health_agents
         phase: test
+        continue_on_failure: true
         command: "python3 ../scripts/bare_metal/query_node_health_agents.py"
         timeout: 120
 
