@@ -34,6 +34,8 @@ def _identifiers(items: list[Any], *keys: str) -> list[str]:
         if not isinstance(item, dict):
             continue
         value = _first_string(item, *keys)
+        if not value and isinstance(item.get("platform_info"), dict):
+            value = _first_string(item["platform_info"], *keys)
         if value and value not in values:
             values.append(value)
     return values

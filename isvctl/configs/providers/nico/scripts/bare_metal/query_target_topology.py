@@ -40,7 +40,14 @@ def main() -> int:
     try:
         machine_id = env_value("NICO_MACHINE_ID")
         machine = nico_json("machine", "show", "--extended", machine_id)
-        placement = machine.get("placement_in_rack") or machine.get("placementInRack") or {}
+        status = machine.get("status") if isinstance(machine.get("status"), dict) else {}
+        placement = (
+            machine.get("placement_in_rack")
+            or machine.get("placementInRack")
+            or status.get("placement_in_rack")
+            or status.get("placementInRack")
+            or {}
+        )
         metadata = machine.get("metadata") or {}
         labels = metadata.get("labels") if isinstance(metadata, dict) else {}
         labels = labels if isinstance(labels, dict) else {}
