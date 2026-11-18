@@ -21,6 +21,19 @@ commands:
   bare_metal:
     phases: ["test"]
     steps:
+      - name: query_governance_metrics
+        phase: test
+        continue_on_failure: true
+        command: "python3 ../scripts/governance/query_metrics.py"
+        args:
+          - "--org"
+          - "{{org}}"
+          - "--site-id"
+          - "{{site_id}}"
+          - "--api-base"
+          - "{{nico_api_base}}"
+        timeout: 120
+
       - name: query_fleet_inventory
         phase: test
         continue_on_failure: true
@@ -61,6 +74,12 @@ tests:
     nico_api_base: "{{env.NICO_API_BASE}}"
 
   validations:
+    governance_metrics:
+      step: query_governance_metrics
+      checks:
+        GovernanceMetricsCheck:
+          min_delivered_nodes: 1
+
     fleet_inventory:
       step: query_fleet_inventory
       checks:
