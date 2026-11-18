@@ -84,12 +84,6 @@ tests:
         BmGpusPresentCheck:
           expected_gpus: 4
 
-    driver_info:
-      step: nvl72_host_probe
-      checks:
-        BmGpuDriverCheck:
-          expected_driver_version: "615.71.10"
-
     dpu_health:
       step: check_dpu_health
       checks:
@@ -130,3 +124,11 @@ tests:
       - "attestation"
       - "iam"
       - "vm"
+    tests:
+      # The generic driver check also requires nvcc, which is not installed on
+      # the validated host; BmGpusPresentCheck still verifies nvidia-smi and
+      # reports the loaded driver version.
+      - "BmGpuDriverCheck"
+      # NICo's current health projection has no BmcSensor/failure-category
+      # taxonomy for this host, so do not claim the full STG04 contract yet.
+      - "OobFailureDetectionCheck"

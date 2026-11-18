@@ -15,7 +15,7 @@ from __future__ import annotations
 import os
 from typing import Any
 
-from common import NicoCommandError, emit, env_value, nico_json
+from common import NicoCommandError, emit, env_value, nico_json, skipped
 
 
 def _walk(value: Any) -> list[dict[str, Any]]:
@@ -80,6 +80,11 @@ def main() -> int:
             raise NicoCommandError("NICo returned no identifiable compute-tray firmware records")
         result.update({"success": True, "trays": trays})
     except NicoCommandError as exc:
+        if "not supported" in str(exc).lower():
+            return skipped(
+                "query_switch_firmware",
+                "NICo firmware-version listing is not supported by this deployment",
+            )
         result["error"] = str(exc)
         result["error_type"] = type(exc).__name__
 

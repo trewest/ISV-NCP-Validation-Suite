@@ -52,16 +52,14 @@ def test_nico_nvl72_config_contains_only_test_phase_steps() -> None:
 
 
 def test_nico_nvl72_host_probe_wires_four_gpu_and_driver_checks() -> None:
-    """Host checks use the NVL72 SSH probe and the observed GB300 baseline."""
+    """The host probe runs the four-GPU check without requiring CUDA toolkit."""
     validations = _config()["tests"]["validations"]
 
     gpu = validations["gpu"]
     assert gpu["step"] == "nvl72_host_probe"
     assert gpu["checks"]["BmGpusPresentCheck"]["expected_gpus"] == 4
 
-    driver = validations["driver_info"]
-    assert driver["step"] == "nvl72_host_probe"
-    assert driver["checks"]["BmGpuDriverCheck"]["expected_driver_version"] == "615.71.10"
+    assert "BmGpuDriverCheck" in _config()["tests"]["exclude"]["tests"]
 
 
 def test_nico_nvl72_config_wires_read_only_platform_checks() -> None:
@@ -75,6 +73,8 @@ def test_nico_nvl72_config_wires_read_only_platform_checks() -> None:
     assert validations["switch_firmware"]["step"] == "query_switch_firmware"
     assert validations["bmc_kernel_logs"]["step"] == "query_bmc_kernel_logs"
     assert validations["node_health_agents"]["step"] == "query_node_health_agents"
+    assert "OobFailureDetectionCheck" in validations["oob_failure_detection"]["checks"]
+    assert "OobFailureDetectionCheck" in _config()["tests"]["exclude"]["tests"]
 
 
 def test_nico_nvl72_dpu_overlay_check_is_deferred_without_active_instance() -> None:
