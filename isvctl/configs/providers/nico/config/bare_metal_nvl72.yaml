@@ -1,0 +1,132 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+#
+# Licensed under the Apache License, Version 2.0 (the "License"); you may not use
+# this file except in compliance with the License. You may obtain a copy of the
+# License at
+#
+# http://www.apache.org/licenses/LICENSE-2.0
+
+# Read-only NVL72 bare-metal validation.
+#
+# Required environment:
+#   NICO_MACHINE_ID             READY target host machine ID
+#   NICO_DPU_MACHINE_ID         target DPU machine ID
+#   NVL72_SSH_KEY_FILE          SSH key for the target host
+#   NVL72_DPU_SSH_KEY_FILE      SSH key for the target DPU
+#
+# Optional environment:
+#   NVL72_HOST                  target host Admin-network address
+#   NVL72_SSH_USER              defaults to ubuntu
+#   NVL72_DPU_HOST              target DPU OOB address
+#   NVL72_DPU_SSH_USER          defaults to ubuntu
+
+import:
+  - ../../../suites/bare_metal.yaml
+
+version: "1.0"
+
+commands:
+  bare_metal:
+    phases: ["test"]
+    steps:
+      - name: nvl72_host_probe
+        phase: test
+        command: "python3 ../scripts/bare_metal/host_probe.py"
+        timeout: 60
+
+      - name: check_dpu_health
+        phase: test
+        command: "python3 ../scripts/bare_metal/check_dpu_health.py"
+        timeout: 120
+
+      - name: query_oob_health
+        phase: test
+        command: "python3 ../scripts/bare_metal/query_oob_health.py"
+        timeout: 120
+
+      - name: query_switch_firmware
+        phase: test
+        command: "python3 ../scripts/bare_metal/query_switch_firmware.py"
+        timeout: 120
+
+      - name: query_bmc_kernel_logs
+        phase: test
+        command: "python3 ../scripts/bare_metal/query_bmc_kernel_logs.py"
+        timeout: 60
+
+      - name: query_node_health_agents
+        phase: test
+        command: "python3 ../scripts/bare_metal/query_node_health_agents.py"
+        timeout: 120
+
+tests:
+  cluster_name: "nico-nvl72-bare-metal"
+  description: "NICo NVL72 read-only bare-metal validation"
+
+  settings:
+    region: "nvl72"
+
+  validations:
+    ssh:
+      step: nvl72_host_probe
+      checks:
+        BmHostReadyCheck:
+          user: "ubuntu"
+          compose:
+            - ConnectivityCheck
+            - OsCheck:
+                expected_os: "ubuntu"
+
+    gpu:
+      step: nvl72_host_probe
+      checks:
+        BmGpusPresentCheck:
+          expected_gpus: 4
+
+    driver_info:
+      step: nvl72_host_probe
+      checks:
+        BmGpuDriverCheck:
+          expected_driver_version: "615.71.10"
+
+    dpu_health:
+      step: check_dpu_health
+      checks:
+        BmDpuHealthCheck:
+          expected_dpu_count: 1
+          require_heartbeat: true
+
+    oob_failure_detection:
+      step: query_oob_health
+      checks:
+        OobFailureDetectionCheck:
+          min_hosts: 1
+
+    switch_firmware:
+      step: query_switch_firmware
+      checks:
+        NvSwitchFirmwareCheck:
+          min_trays: 1
+
+    bmc_kernel_logs:
+      step: query_bmc_kernel_logs
+      checks:
+        BmcKernelLogCheck:
+          min_hosts: 1
+
+    node_health_agents:
+      step: query_node_health_agents
+      checks:
+        NodeHealthAgentCheck: {}
+
+  # Lifecycle, workload, stress, sanitization, and DPU overlay checks remain
+  # unconfigured or excluded until a separate approved phase.
+  exclude:
+    labels:
+      - "slow"
+      - "workload"
+      - "sanitization"
+      - "attestation"
+      - "iam"
+      - "vm"
