@@ -4866,6 +4866,44 @@ def test_switch_firmware_fails_on_other_http_errors(
     assert out.get("skipped") is not True
 
 
+def test_switch_firmware_skips_when_tray_endpoint_times_out(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """A slow/unsupported firmware endpoint must not fail unrelated validation."""
+    module = _load_switch_firmware_script()
+
+    def _timeout(*_a: object, **_kw: Any) -> list[dict[str, Any]]:
+        raise TimeoutError("read operation timed out")
+
+    code, out = _run_firmware(module, monkeypatch, capsys, _timeout)
+
+    assert code == 0
+    assert out["skipped"] is True
+    assert out["gap"] == module.GAP_ID
+    assert "timed out" in out["skip_reason"]
+    assert out["trays"] == []
+
+
+@pytest.mark.parametrize("status", [502, 503, 504])
+def test_switch_firmware_skips_when_backend_is_unavailable(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    status: int,
+) -> None:
+    """Gateway/backend outages must not fail unrelated read-only validation."""
+    module = _load_switch_firmware_script()
+
+    def _unavailable(*_a: object, **_kw: object) -> list[dict[str, Any]]:
+        raise HTTPError("http://x", status, "Gateway unavailable", None, None)
+
+    code, out = _run_firmware(module, monkeypatch, capsys, _unavailable)
+
+    assert code == 0
+    assert out["skipped"] is True
+    assert out["gap"] == module.GAP_ID
+    assert out["trays"] == []
+
+
 def test_switch_firmware_skips_a_site_with_no_trays(
     monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:

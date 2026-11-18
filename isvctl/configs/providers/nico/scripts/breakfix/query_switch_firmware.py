@@ -213,6 +213,14 @@ def main() -> int:
             skip = skip_result(args.site_id, _no_flow_reason(declared), gap=GAP_ID)
             skip["trays"] = []
             return emit(skip)
+        if exc.code in {502, 503, 504}:
+            skip = skip_result(
+                args.site_id,
+                f"GET /tray?type={SWITCH_TRAY_TYPE} returned HTTP {exc.code}; firmware inventory is unavailable",
+                gap=GAP_ID,
+            )
+            skip["trays"] = []
+            return emit(skip)
         result["error"] = f"{type(exc).__name__}: {exc}"
         return emit(result)
     except (URLError, ValueError) as exc:
