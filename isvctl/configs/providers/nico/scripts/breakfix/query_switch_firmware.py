@@ -218,6 +218,14 @@ def main() -> int:
     except (URLError, ValueError) as exc:
         result["error"] = f"{type(exc).__name__}: {exc}"
         return emit(result)
+    except TimeoutError:
+        skip = skip_result(
+            args.site_id,
+            f"GET /tray?type={SWITCH_TRAY_TYPE} timed out; switch firmware inventory is unavailable",
+            gap=GAP_ID,
+        )
+        skip["trays"] = []
+        return emit(skip)
 
     if not trays:
         # A site with no switch trays cannot demonstrate the API either way, so
