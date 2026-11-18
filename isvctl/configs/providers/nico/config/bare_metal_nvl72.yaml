@@ -66,6 +66,30 @@ commands:
         command: "python3 ../scripts/bare_metal/query_node_health_agents.py"
         timeout: 120
 
+      - name: query_target_serials
+        phase: test
+        continue_on_failure: true
+        command: "python3 ../scripts/bare_metal/query_target_serials.py"
+        timeout: 120
+
+      - name: query_target_ip
+        phase: test
+        continue_on_failure: true
+        command: "python3 ../scripts/bare_metal/query_target_ip.py"
+        timeout: 120
+
+      - name: query_target_health
+        phase: test
+        continue_on_failure: true
+        command: "python3 ../scripts/bare_metal/query_target_health.py"
+        timeout: 120
+
+      - name: query_target_topology
+        phase: test
+        continue_on_failure: true
+        command: "python3 ../scripts/bare_metal/query_target_topology.py"
+        timeout: 120
+
 tests:
   cluster_name: "nico-nvl72-bare-metal"
   description: "NICo NVL72 read-only bare-metal validation"
@@ -119,6 +143,33 @@ tests:
       step: query_node_health_agents
       checks:
         NodeHealthAgentCheck: {}
+
+    hardware_serials:
+      step: query_target_serials
+      checks:
+        BmHardwareSerialCheck:
+          min_machines: 1
+
+    stable_storage_ips:
+      step: query_target_ip
+      checks:
+        StableStorageNodeIpCheck:
+          min_hosts: 1
+          storage_only: false
+
+    host_health:
+      step: query_target_health
+      checks:
+        HostHealthCheck:
+          require_report: true
+
+    failure_domain_observability:
+      step: query_target_topology
+      checks:
+        FailureDomainObservabilityCheck:
+          min_hosts: 1
+          min_failure_domains: 1
+          require_all_hosts_mapped: true
 
   # Lifecycle, workload, stress, sanitization, and DPU overlay checks remain
   # unconfigured or excluded until a separate approved phase.

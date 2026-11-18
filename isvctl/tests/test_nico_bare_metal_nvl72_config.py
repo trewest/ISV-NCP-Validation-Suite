@@ -25,6 +25,10 @@ EXPECTED_STEPS = {
     "query_switch_firmware",
     "query_bmc_kernel_logs",
     "query_node_health_agents",
+    "query_target_serials",
+    "query_target_ip",
+    "query_target_health",
+    "query_target_topology",
 }
 
 
@@ -75,6 +79,30 @@ def test_nico_nvl72_config_wires_read_only_platform_checks() -> None:
     assert validations["node_health_agents"]["step"] == "query_node_health_agents"
     assert "OobFailureDetectionCheck" in validations["oob_failure_detection"]["checks"]
     assert "OobFailureDetectionCheck" in _config()["tests"]["exclude"]["tests"]
+
+
+def test_nico_nvl72_config_wires_target_inventory_checks() -> None:
+    """Inventory checks must query only the explicitly selected target machine."""
+    validations = _config()["tests"]["validations"]
+
+    assert validations["hardware_serials"]["step"] == "query_target_serials"
+    assert validations["hardware_serials"]["checks"]["BmHardwareSerialCheck"]["min_machines"] == 1
+
+    assert validations["stable_storage_ips"]["step"] == "query_target_ip"
+    assert validations["stable_storage_ips"]["checks"]["StableStorageNodeIpCheck"] == {
+        "min_hosts": 1,
+        "storage_only": False,
+    }
+
+    assert validations["host_health"]["step"] == "query_target_health"
+    assert validations["host_health"]["checks"]["HostHealthCheck"]["require_report"] is True
+
+    assert validations["failure_domain_observability"]["step"] == "query_target_topology"
+    assert validations["failure_domain_observability"]["checks"]["FailureDomainObservabilityCheck"] == {
+        "min_hosts": 1,
+        "min_failure_domains": 1,
+        "require_all_hosts_mapped": True,
+    }
 
 
 def test_nico_nvl72_dpu_overlay_check_is_deferred_without_active_instance() -> None:
