@@ -61,20 +61,44 @@ See the controller's [Service annotation reference](https://kubernetes-sigs.gith
 
 ## Conditional forwarding: K8S30-01
 
-This check **temporarily edits the selected cluster CoreDNS ConfigMap**. Use a test
-cluster and an identity allowed to read/patch that ConfigMap. The existing Corefile
-must have the `reload` plugin enabled. The probe appends a unique `.invalid` zone
-forwarding to a disposable upstream resolver, then resolves its unique record from
-a pod using the cluster's normal DNS. It checks the answer, the upstream's query
-log, and a normal `kubernetes.default.svc` lookup.
+For standard CoreDNS, this check temporarily edits the selected Corefile ConfigMap.
+Use a test cluster and an identity allowed to read and patch that ConfigMap. The
+Corefile must have the `reload` plugin enabled. The probe adds a unique `.invalid`
+zone forwarding to a disposable upstream resolver, then resolves its unique record
+from a pod using cluster DNS. It checks the answer, the upstream query log, and a
+normal `kubernetes.default.svc` lookup. Cleanup removes only the exact block added
+by this run and refuses to overwrite a recreated ConfigMap or concurrent edits.
 
-Cleanup removes only the exact block added by this run. Compare-and-swap patches
-preserve unrelated concurrent edits and refuse to overwrite a recreated ConfigMap.
-Failed restoration fails the result even if lookups passed. Avoid simultaneous
-CoreDNS rollouts while running the check. The probe tests configurable forwarding
-with a controlled resolver; it does not certify reachability of every enterprise
-DNS server. See CoreDNS [forward](https://coredns.io/plugins/forward/) and
-[reload](https://coredns.io/plugins/reload/).
+For OpenShift, use [networking-openshift-example.json](networking-openshift-example.json)
+and set `backend` to `openshift_operator`. The probe adds a temporary forwarding
+entry through `dns.operator.openshift.io/default`, waits for the DNS Operator to
+publish the generated Corefile and complete its DaemonSet rollout, then restores the
+original `spec.servers` list. Set `allow_operator_rollout` to `true` only when
+running against a test cluster where a cluster DNS rollout is acceptable. This
+requires permission to update the cluster-scoped DNS Operator resource, and the
+forwarding change can briefly affect DNS service while its pods roll. Restoration
+failure or a concurrent change to `spec.servers` fails the check rather than
+overwriting another administrator's change.
+
+Copy the OpenShift example to a private working path, change
+`allow_operator_rollout` to `true` only after confirming this is a disposable test
+cluster, and run just the DNS validation:
+
+```bash
+cp isvctl/configs/providers/my-isv/scripts/k8s/networking-openshift-example.json /tmp/networking-openshift.json
+# Edit /tmp/networking-openshift.json and explicitly set allow_operator_rollout to true.
+export K8S_NETWORKING_CONFIG=/tmp/networking-openshift.json
+uv run isvctl test run -f isvctl/configs/providers/my-isv/config/k8s.yaml --phase test -- \
+  -k K8sDnsForwardingCheck
+```
+
+The example includes no LoadBalancer or CIDR probe settings, so those steps skip.
+The DNS probe also skips until the explicit rollout opt-in is enabled.
+
+Both backends test conditional forwarding with a controlled resolver; they do not
+certify reachability of every enterprise DNS server. See CoreDNS
+[forward](https://coredns.io/plugins/forward/) and the OpenShift
+[DNS Operator guide](https://docs.openshift.com/container-platform/latest/networking/networking_operators/dns-operator.html).
 
 ## Configured ranges: K8S31-01
 
@@ -91,6 +115,25 @@ a disposable cluster with those ranges and run again. A CNI such as default AWS 
 CNI that does not publish node `podCIDRs` needs a provider-specific probe; this check
 skips rather than inferring a configured range from one observed address.
 The ServiceCIDR API must be enabled; see [Service IP ranges](https://kubernetes.io/docs/tasks/network/extend-service-ip-ranges/).
+
+For OpenShift OVNKubernetes, set `backend` to `openshift_ovn`. This reads the
+configured service and cluster networks from `Network.config.openshift.io/cluster`
+and per-node pod subnets from the `k8s.ovn.org/node-subnets` annotation, then
+creates a temporary pod and Service to verify fresh allocations. The
+`networking-openshift-example.json` contains the ranges from the example BareMetal
+cluster; replace them if your cluster uses different ranges. Run it with:
+
+```bash
+cp isvctl/configs/providers/my-isv/scripts/k8s/networking-openshift-example.json /tmp/networking-openshift.json
+export K8S_NETWORKING_CONFIG=/tmp/networking-openshift.json
+uv run isvctl test run -f isvctl/configs/providers/my-isv/config/k8s.yaml --phase test -- \
+  -k K8sCidrRangesCheck
+```
+
+The controller needs read access to the cluster Network resource, nodes and
+services, plus permission to create and delete the temporary namespace, pod and
+Service. The DNS forwarding probe in this example remains disabled unless its
+separate operator-rollout opt-in is enabled.
 
 ## Fixtures and cleanup
 

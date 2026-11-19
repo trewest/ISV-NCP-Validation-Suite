@@ -1,0 +1,19 @@
+{
+  "dns_forwarding": {
+    "backend": "openshift_operator",
+    "allow_operator_rollout": false,
+    "operator": "default",
+    "dns_namespace": "openshift-dns",
+    "dns_configmap": "dns-default",
+    "cluster_domain": "cluster.local",
+    "timeout": 600
+  },
+  "cidr_ranges": {
+    "backend": "openshift_ovn",
+    "ranges": {
+      "service": ["172.30.0.0/16"],
+      "node": ["192.168.127.0/24"],
+      "pod": ["10.128.0.0/14"]
+    }
+  }
+}
