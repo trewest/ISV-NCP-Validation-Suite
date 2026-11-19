@@ -1113,6 +1113,81 @@ def test_nico_scripts_require_api_base(
     assert "--api-base" in captured.err
 
 
+def test_ingestion_script_reconciles_dpu_expected_records_from_dpu_inventory(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """DPU expected records are matched against NICo's separate DPU inventory."""
+    module = _load_ingestion_script()
+    responses = {
+        "expected-machine": [
+            {
+                "id": "host-expected-1",
+                "machineId": "host-1",
+                "chassisSerialNumber": "HOST-SN-1",
+                "bmcMacAddress": "00:11:22:33:44:55",
+            },
+            {
+                "id": "dpu-expected-1",
+                "machineId": None,
+                "chassisSerialNumber": "DPU-SN-1",
+                "bmcMacAddress": "E0:9D:73:7D:E8:0D",
+                "bmcIpAddress": "172.16.2.41",
+                "labels": {"model": "BlueField-3"},
+            },
+        ],
+        "machine": [
+            {
+                "id": "host-1",
+                "status": "InUse",
+                "health": {"alerts": []},
+                "machineCapabilities": [
+                    {"type": "GPU", "count": 4},
+                    {"type": "DPU", "count": 1},
+                ],
+            }
+        ],
+        "dpu": [
+            {
+                "id": "dpu-1",
+                "hostMachineId": "host-1",
+                "state": "Assigned/Ready",
+                "dmiData": {"productSerial": "DPU-SN-1"},
+                "bmcInfo": {"ip": "172.16.2.41", "mac": "E0:9D:73:7D:E8:0D"},
+                "health": {"alerts": []},
+            }
+        ],
+    }
+    monkeypatch.setattr(module, "resolve_auth", lambda: SimpleNamespace(token="test-token"))
+    monkeypatch.setattr(module, "forge_get_all", lambda _org, path, _token, **kwargs: responses[path])
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "verify_ingestion.py",
+            "--org",
+            "test-org",
+            "--site-id",
+            "site-1",
+            "--api-base",
+            "https://nico.example/v2/org",
+        ],
+    )
+
+    exit_code = module.main()
+
+    payload = json.loads(capsys.readouterr().out)
+    assert exit_code == 0, payload
+    assert payload["expected_count"] == 2
+    assert payload["ingested_count"] == 2
+    assert payload["matched_count"] == 2
+    assert payload["missing"] == []
+    assert {machine["machine_id"] for machine in payload["machines"]} == {"host-1", "dpu-1"}
+    dpu = next(machine for machine in payload["machines"] if machine["machine_id"] == "dpu-1")
+    assert dpu["status"] == "Ready"
+    assert dpu["health"] == "healthy"
+
+
 def test_dpu_health_script_treats_nullable_machine_lists_as_empty(
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],
