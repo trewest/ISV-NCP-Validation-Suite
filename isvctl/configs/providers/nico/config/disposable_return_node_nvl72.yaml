@@ -37,7 +37,7 @@ commands:
           - "{{site_id}}"
           - "--api-base"
           - "{{nico_api_base}}"
-        timeout: 900
+        timeout: 1200
 
       - name: return_node_maintenance
         phase: test
@@ -51,7 +51,7 @@ commands:
           - "--api-base"
           - "{{nico_api_base}}"
           - "--instance-id={{steps.create_disposable_instance.instance_id}}"
-        timeout: 900
+        timeout: 1200
 
       - name: cleanup_disposable_instance
         phase: teardown
@@ -65,7 +65,7 @@ commands:
           - "--api-base"
           - "{{nico_api_base}}"
           - "--instance-id={{steps.create_disposable_instance.instance_id}}"
-        timeout: 900
+        timeout: 1200
 
 tests:
   cluster_name: "nico-nvl72-disposable-return"

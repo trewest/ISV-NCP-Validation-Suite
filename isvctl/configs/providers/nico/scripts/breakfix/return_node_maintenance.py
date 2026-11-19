@@ -108,7 +108,20 @@ ALLOW_ENV = "NICO_ALLOW_RELEASE_FOR_REPAIR"
 POLL_INTERVAL_SECONDS = 5
 # The delete returns as soon as NICo accepts it; the machine leaves the pool
 # through a site workflow that may queue behind other work.
-POLL_DEADLINE_SECONDS = 300
+POLL_DEADLINE_SECONDS = 900
+
+
+def _poll_deadline_seconds() -> int:
+    """Return the release observation timeout, with a bounded runtime override."""
+    raw = os.environ.get("NICO_RETURN_NODE_TIMEOUT_SECONDS", "").strip()
+    if not raw:
+        return POLL_DEADLINE_SECONDS
+    try:
+        value = int(raw)
+    except ValueError:
+        return POLL_DEADLINE_SECONDS
+    return value if value > 0 else POLL_DEADLINE_SECONDS
+
 
 # NICo requires a health issue alongside the delete. Category must be one of
 # Hardware, Network, Performance, Storage, Software, Other.
@@ -155,9 +168,16 @@ def _machine_status(org: str, machine_id: str, token: str, *, base_url: str) -> 
     return first_string(forge_get(org, f"machine/{machine_id}", token, base_url=base_url), "status")
 
 
-def _await_deletion(org: str, instance_id: str, token: str, *, base_url: str) -> bool:
+def _await_deletion(
+    org: str,
+    instance_id: str,
+    token: str,
+    *,
+    base_url: str,
+    deadline_seconds: int = POLL_DEADLINE_SECONDS,
+) -> bool:
     """Poll until the instance is gone; return whether it went away."""
-    deadline = time.monotonic() + POLL_DEADLINE_SECONDS
+    deadline = time.monotonic() + deadline_seconds
     while True:
         if not _instance(org, instance_id, token, base_url=base_url):
             return True
@@ -166,14 +186,21 @@ def _await_deletion(org: str, instance_id: str, token: str, *, base_url: str) ->
         time.sleep(POLL_INTERVAL_SECONDS)
 
 
-def _await_quarantine(org: str, machine_id: str, token: str, *, base_url: str) -> tuple[bool, str]:
+def _await_quarantine(
+    org: str,
+    machine_id: str,
+    token: str,
+    *,
+    base_url: str,
+    deadline_seconds: int = POLL_DEADLINE_SECONDS,
+) -> tuple[bool, str]:
     """Poll until the machine leaves service; return ``(quarantined, last status)``.
 
     ``Ready`` is the failure case worth naming: it means the provider took the
     node back and immediately offered it to someone else, which is precisely
     what the health issue was supposed to prevent.
     """
-    deadline = time.monotonic() + POLL_DEADLINE_SECONDS
+    deadline = time.monotonic() + deadline_seconds
     status = ""
     while True:
         status = _machine_status(org, machine_id, token, base_url=base_url)
@@ -254,20 +281,32 @@ def main() -> int:
         operation["requested"] = True
         operation["accepted"] = True
 
-        operation["instance_deleted"] = _await_deletion(args.org, args.instance_id, auth.token, base_url=args.api_base)
+        deadline_seconds = _poll_deadline_seconds()
+        operation["instance_deleted"] = _await_deletion(
+            args.org,
+            args.instance_id,
+            auth.token,
+            base_url=args.api_base,
+            deadline_seconds=deadline_seconds,
+        )
         if not operation["instance_deleted"]:
             # A destructive step that cannot confirm its own outcome has not
             # succeeded, whatever the API answered: the instance may or may not
             # be on its way out, and the step must not exit 0 saying otherwise.
             result["success"] = False
             operation["message"] = (
-                f"NICo accepted the release but instance {args.instance_id} still existed after "
-                f"{POLL_DEADLINE_SECONDS}s"
+                f"NICo accepted the release but instance {args.instance_id} still existed after {deadline_seconds}s"
             )
             result["error"] = operation["message"]
             return emit(result)
 
-        quarantined, status = _await_quarantine(args.org, machine_id, auth.token, base_url=args.api_base)
+        quarantined, status = _await_quarantine(
+            args.org,
+            machine_id,
+            auth.token,
+            base_url=args.api_base,
+            deadline_seconds=deadline_seconds,
+        )
         operation["machine_quarantined"] = quarantined
         if not quarantined:
             result["success"] = False

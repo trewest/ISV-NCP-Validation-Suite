@@ -28,7 +28,7 @@ from common.nico_client import NicoAuthError, forge_delete, forge_get, resolve_a
 CREATE_GUARD = "NICO_ALLOW_DISPOSABLE_INSTANCE_CREATE"
 RELEASE_GUARD = "NICO_ALLOW_RELEASE_FOR_REPAIR"
 POLL_INTERVAL_SECONDS = 5
-POLL_TIMEOUT_SECONDS = 300
+POLL_TIMEOUT_SECONDS = 900
 
 REPAIR_ISSUE = {
     "category": "Hardware",
@@ -42,6 +42,18 @@ def _env(name: str) -> str:
     return os.environ.get(name, "").strip()
 
 
+def _poll_timeout_seconds() -> int:
+    """Return the cleanup observation timeout, with a bounded runtime override."""
+    raw = _env("NICO_DISPOSABLE_INSTANCE_CLEANUP_TIMEOUT_SECONDS")
+    if not raw:
+        return POLL_TIMEOUT_SECONDS
+    try:
+        value = int(raw)
+    except ValueError:
+        return POLL_TIMEOUT_SECONDS
+    return value if value > 0 else POLL_TIMEOUT_SECONDS
+
+
 def _get_instance(org: str, instance_id: str, token: str, *, base_url: str) -> dict[str, Any]:
     """Return an instance or an empty object when it has already disappeared."""
     try:
@@ -52,9 +64,16 @@ def _get_instance(org: str, instance_id: str, token: str, *, base_url: str) -> d
         raise
 
 
-def _wait_deleted(org: str, instance_id: str, token: str, *, base_url: str) -> bool:
+def _wait_deleted(
+    org: str,
+    instance_id: str,
+    token: str,
+    *,
+    base_url: str,
+    timeout_seconds: int = POLL_TIMEOUT_SECONDS,
+) -> bool:
     """Wait for the instance to disappear after cleanup."""
-    deadline = time.monotonic() + POLL_TIMEOUT_SECONDS
+    deadline = time.monotonic() + timeout_seconds
     while True:
         if not _get_instance(org, instance_id, token, base_url=base_url):
             return True
@@ -104,7 +123,13 @@ def main() -> int:
                 base_url=args.api_base,
                 body={"machineHealthIssue": dict(REPAIR_ISSUE)},
             )
-            result["deleted"] = _wait_deleted(args.org, args.instance_id, auth.token, base_url=args.api_base)
+            result["deleted"] = _wait_deleted(
+                args.org,
+                args.instance_id,
+                auth.token,
+                base_url=args.api_base,
+                timeout_seconds=_poll_timeout_seconds(),
+            )
             if not result["deleted"]:
                 result["success"] = False
                 result["error"] = "cleanup was accepted but the disposable instance still exists"

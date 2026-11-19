@@ -82,3 +82,13 @@ def test_cleanup_without_created_instance_is_safe(
     payload = json.loads(capsys.readouterr().out)
     assert payload["success"] is True
     assert payload["skipped"] is True
+
+
+def test_return_node_maintenance_allows_longer_runtime_cleanup_wait(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Slow site workflows can extend the release observation deadline safely."""
+    module = _load_script("breakfix/return_node_maintenance.py", "test_return_node_maintenance_timeout")
+    monkeypatch.setenv("NICO_RETURN_NODE_TIMEOUT_SECONDS", "1200")
+
+    assert module._poll_deadline_seconds() == 1200
