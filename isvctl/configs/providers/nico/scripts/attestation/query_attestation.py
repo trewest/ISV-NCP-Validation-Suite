@@ -102,7 +102,15 @@ def build_admin_cli_command(args: argparse.Namespace) -> list[str]:
 
 def build_spdm_command(args: argparse.Namespace) -> list[str]:
     """Build the admin CLI command used to query SPDM attestation status."""
-    return [*build_admin_cli_command(args), "attestation", "spdm", "list"]
+    return [
+        *build_admin_cli_command(args),
+        "attestation",
+        "spdm",
+        "machines",
+        "list",
+        "--machine-type",
+        "host",
+    ]
 
 
 def build_measured_boot_command(args: argparse.Namespace) -> list[str]:

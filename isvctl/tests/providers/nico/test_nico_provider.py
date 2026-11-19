@@ -1335,6 +1335,27 @@ def test_dpu_health_script_treats_nullable_alert_fields_as_empty(
 # ---------------------------------------------------------------------------
 
 
+def test_attestation_script_uses_supported_spdm_machine_list_command() -> None:
+    """The current admin CLI lists SPDM status under the machines subcommand."""
+    module = _load_attestation_script()
+    args = SimpleNamespace(
+        admin_cli="nico-admin-cli",
+        carbide_url="",
+        forge_root_ca_path="",
+        client_key_path="",
+        client_cert_path="",
+    )
+
+    assert module.build_spdm_command(args)[-6:] == [
+        "attestation",
+        "spdm",
+        "machines",
+        "list",
+        "--machine-type",
+        "host",
+    ]
+
+
 def _run_attestation_script(
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],
@@ -1356,7 +1377,7 @@ def _run_attestation_script(
         ]
 
     def _fake_admin_cli(command: list[str], **kwargs: Any) -> list[Any]:
-        if command[-3:] == ["attestation", "spdm", "list"]:
+        if command[-6:] == ["attestation", "spdm", "machines", "list", "--machine-type", "host"]:
             return spdm_statuses
         if command[-4:] == ["attestation", "measured-boot", "machine", "show"]:
             return measured_boot_machines
