@@ -38,6 +38,16 @@ commands:
   kubernetes:
     phases: ["setup", "test", "teardown"]
     steps:
+      # Upstream reference for K8sClusterMinorVersionCheck. This is also
+      # declared by provider configs that import this suite and need the same
+      # release data for provider-specific version checks.
+      - name: fetch_upstream_k8s_versions
+        phase: test
+        continue_on_failure: true
+        command: "python3 ../shared/k8s/fetch_upstream_versions.py"
+        output_schema: k8s_upstream_versions
+        timeout: 60
+
       - name: setup
         phase: setup
         command: "../providers/my-isv/scripts/k8s/setup.sh"
@@ -212,12 +222,19 @@ tests:
           # step reported, and a size that has since drifted is caught.
           phase: test
 
-    # Kubernetes version support and control-plane patching (K8S02). Both
-    # checks skip without the fetch_upstream_k8s_versions step - there is
-    # nothing to compare a provider against. phase: test keeps a K8S02 finding
-    # from failing setup and taking the rest of the suite with it.
+    # Kubernetes version checks use the upstream release index. The provider
+    # offering and patching checks also need their provider-specific steps.
+    # phase: test keeps a version finding from failing setup and taking the
+    # rest of the suite with it.
     k8s_versions:
       checks:
+        K8sClusterMinorVersionCheck:
+          test_id: "N/A"
+          labels: ["kubernetes"]
+          phase: test
+          upstream_cycles: "{{ steps.fetch_upstream_k8s_versions.cycles_json | default('', true) }}"
+          supported_minor_count: 3
+          availability_grace_days: 42
         K8sSupportedMinorVersionsCheck:
           test_id: "K8S02-01"
           labels: ["kubernetes", "offtake"]
