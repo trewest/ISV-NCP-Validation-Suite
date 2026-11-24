@@ -1,0 +1,48 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+#
+# Licensed under the Apache License, Version 2.0 (the "License"); you may not use
+# this file except in compliance with the License. You may obtain a copy of the
+# License at
+#
+# http://www.apache.org/licenses/LICENSE-2.0
+
+# Read-only, site-wide NICo health aggregation validation for NVL72.
+
+import:
+  - ../../../suites/bare_metal.yaml
+
+version: "1.0"
+
+commands:
+  bare_metal:
+    phases: ["test"]
+    steps:
+      - name: query_health_aggregation
+        phase: test
+        continue_on_failure: true
+        command: "python3 ../scripts/health/query_health_aggregation.py"
+        args:
+          - "--org"
+          - "{{org}}"
+          - "--site-id"
+          - "{{site_id}}"
+          - "--api-base"
+          - "{{nico_api_base}}"
+        timeout: 120
+
+tests:
+  cluster_name: "nico-nvl72-health"
+  description: "NICo NVL72 read-only health aggregation validation"
+
+  settings:
+    org: "{{env.NICO_ORGANIZATION}}"
+    site_id: "{{env.NICO_SITE_ID}}"
+    nico_api_base: "{{env.NICO_API_BASE}}"
+
+  validations:
+    health_aggregation:
+      step: query_health_aggregation
+      checks:
+        HealthAggregationCheck:
+          min_groups: 1

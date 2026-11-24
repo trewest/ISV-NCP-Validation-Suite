@@ -1,0 +1,53 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+#
+# Licensed under the Apache License, Version 2.0 (the "License"); you may not use
+# this file except in compliance with the License. You may obtain a copy of the
+# License at
+#
+# http://www.apache.org/licenses/LICENSE-2.0
+
+# Explicitly armed NICo mutation validation for a disposable instance only.
+# Runtime requirements:
+#   NICO_INSTANCE_ID=<disposable-instance-id>
+#   NICO_ALLOW_RELEASE_FOR_REPAIR=1
+# The step never discovers or selects an instance.
+
+import:
+  - ../../../suites/bare_metal.yaml
+
+version: "1.0"
+
+commands:
+  bare_metal:
+    phases: ["test"]
+    steps:
+      - name: return_node_maintenance
+        phase: test
+        continue_on_failure: true
+        command: "python3 ../scripts/breakfix/return_node_maintenance.py"
+        args:
+          - "--org"
+          - "{{org}}"
+          - "--site-id"
+          - "{{site_id}}"
+          - "--api-base"
+          - "{{nico_api_base}}"
+          - "--instance-id={{instance_id}}"
+        timeout: 900
+
+tests:
+  cluster_name: "nico-nvl72-return-node-maintenance"
+  description: "NICo NVL72 ReturnNodeMaintenanceCheck; requires NICO_INSTANCE_ID and NICO_ALLOW_RELEASE_FOR_REPAIR=1"
+
+  settings:
+    org: "{{env.NICO_ORGANIZATION}}"
+    site_id: "{{env.NICO_SITE_ID}}"
+    nico_api_base: "{{env.NICO_API_BASE}}"
+    instance_id: "{{env.NICO_INSTANCE_ID}}"
+
+  validations:
+    return_node_maintenance:
+      step: return_node_maintenance
+      checks:
+        ReturnNodeMaintenanceCheck: {}

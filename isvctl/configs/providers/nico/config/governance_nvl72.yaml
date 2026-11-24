@@ -1,0 +1,94 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+#
+# Licensed under the Apache License, Version 2.0 (the "License"); you may not use
+# this file except in compliance with the License. You may obtain a copy of the
+# License at
+#
+# http://www.apache.org/licenses/LICENSE-2.0
+
+# Read-only, site-wide NICo governance validation for NVL72.
+#
+# This config intentionally reports site inventory, including any assigned
+# machines, but performs no host lifecycle or repair operation.
+
+import:
+  - ../../../suites/bare_metal.yaml
+
+version: "1.0"
+
+commands:
+  bare_metal:
+    phases: ["test"]
+    steps:
+      - name: query_governance_metrics
+        phase: test
+        continue_on_failure: true
+        command: "python3 ../scripts/governance/query_metrics.py"
+        args:
+          - "--org"
+          - "{{org}}"
+          - "--site-id"
+          - "{{site_id}}"
+          - "--api-base"
+          - "{{nico_api_base}}"
+        timeout: 120
+
+      - name: query_fleet_inventory
+        phase: test
+        continue_on_failure: true
+        command: "python3 ../scripts/governance/query_fleet_inventory.py"
+        args:
+          - "--org"
+          - "{{org}}"
+          - "--site-id"
+          - "{{site_id}}"
+          - "--api-base"
+          - "{{nico_api_base}}"
+        timeout: 120
+
+      - name: query_resource_discovery
+        phase: test
+        continue_on_failure: true
+        command: "python3 ../scripts/governance/query_resource_discovery.py"
+        args:
+          - "--org"
+          - "{{org}}"
+          - "--site-id"
+          - "{{site_id}}"
+          - "--api-base"
+          - "{{nico_api_base}}"
+          - "--polls"
+          - "2"
+          - "--poll-interval"
+          - "5"
+        timeout: 120
+
+tests:
+  cluster_name: "nico-nvl72-governance"
+  description: "NICo NVL72 read-only fleet and resource discovery governance"
+
+  settings:
+    org: "{{env.NICO_ORGANIZATION}}"
+    site_id: "{{env.NICO_SITE_ID}}"
+    nico_api_base: "{{env.NICO_API_BASE}}"
+
+  validations:
+    governance_metrics:
+      step: query_governance_metrics
+      checks:
+        GovernanceMetricsCheck:
+          min_delivered_nodes: 1
+
+    fleet_inventory:
+      step: query_fleet_inventory
+      checks:
+        FleetManagementApiCheck:
+          min_nodes: 1
+
+    resource_discovery:
+      step: query_resource_discovery
+      checks:
+        ResourceDiscoveryApiCheck:
+          min_resources: 1
+          min_polls: 2

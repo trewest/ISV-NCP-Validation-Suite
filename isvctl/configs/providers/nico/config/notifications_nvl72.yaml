@@ -1,0 +1,91 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+#
+# Licensed under the Apache License, Version 2.0 (the "License"); you may not use
+# this file except in compliance with the License. You may obtain a copy of the
+# License at
+#
+# http://www.apache.org/licenses/LICENSE-2.0
+
+# Read-only NICo notification/retirement observability checks for NVL72.
+# NICo does not currently expose these channels; gap_stub.py emits explicit,
+# provider-neutral skips rather than fabricated records.
+
+import:
+  - ../../../suites/bare_metal.yaml
+
+version: "1.0"
+
+commands:
+  bare_metal:
+    phases: ["test"]
+    steps:
+      - name: query_retirement_notices
+        phase: test
+        continue_on_failure: true
+        command: "python3 ../scripts/breakfix/gap_stub.py"
+        args:
+          - "--org"
+          - "{{org}}"
+          - "--site-id"
+          - "{{site_id}}"
+          - "--api-base"
+          - "{{nico_api_base}}"
+          - "--gap"
+          - "BFX02-02"
+        timeout: 120
+
+      - name: query_planned_notifications
+        phase: test
+        continue_on_failure: true
+        command: "python3 ../scripts/breakfix/gap_stub.py"
+        args:
+          - "--org"
+          - "{{org}}"
+          - "--site-id"
+          - "{{site_id}}"
+          - "--api-base"
+          - "{{nico_api_base}}"
+          - "--gap"
+          - "BFX05-01"
+        timeout: 120
+
+      - name: query_failure_notifications
+        phase: test
+        continue_on_failure: true
+        command: "python3 ../scripts/breakfix/gap_stub.py"
+        args:
+          - "--org"
+          - "{{org}}"
+          - "--site-id"
+          - "{{site_id}}"
+          - "--api-base"
+          - "{{nico_api_base}}"
+          - "--gap"
+          - "BFX06-01"
+        timeout: 120
+
+tests:
+  cluster_name: "nico-nvl72-notifications"
+  description: "NICo NVL72 read-only notification and retirement observability"
+
+  settings:
+    org: "{{env.NICO_ORGANIZATION}}"
+    site_id: "{{env.NICO_SITE_ID}}"
+    nico_api_base: "{{env.NICO_API_BASE}}"
+
+  validations:
+    retirement_notices:
+      step: query_retirement_notices
+      checks:
+        RetirementNoticesCheck: {}
+
+    planned_notifications:
+      step: query_planned_notifications
+      checks:
+        PlannedMaintenanceNotificationCheck: {}
+
+    failure_notifications:
+      step: query_failure_notifications
+      checks:
+        FailureNotificationCheck: {}
