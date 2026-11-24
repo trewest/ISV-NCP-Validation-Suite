@@ -1,0 +1,50 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+#
+# Licensed under the Apache License, Version 2.0 (the "License"); you may not use
+# this file except in compliance with the License. You may obtain a copy of the
+# License at
+#
+# http://www.apache.org/licenses/LICENSE-2.0
+
+# Explicitly armed disposable NICo VPC-peering validation.
+# Set NICO_ALLOW_VPC_PEERING_MUTATION=1 to create/delete temporary VPCs and a
+# peering. Route evidence is reported as a structured skip because NICo's REST
+# API does not expose a separate route-add/read operation.
+
+import:
+  - ../../../suites/network.yaml
+
+version: "1.0"
+
+commands:
+  network:
+    phases: ["test"]
+    steps:
+      - name: query_vpc_peering
+        phase: test
+        continue_on_failure: true
+        command: "python3 ../scripts/network/query_vpc_peering.py"
+        args:
+          - "--org"
+          - "{{org}}"
+          - "--site-id"
+          - "{{site_id}}"
+          - "--api-base"
+          - "{{nico_api_base}}"
+        timeout: 1800
+
+tests:
+  cluster_name: "nico-nvl72-vpc-peering"
+  description: "NICo NVL72 disposable VPC peering validation; requires NICO_ALLOW_VPC_PEERING_MUTATION=1"
+
+  settings:
+    org: "{{env.NICO_ORGANIZATION}}"
+    site_id: "{{env.NICO_SITE_ID}}"
+    nico_api_base: "{{env.NICO_API_BASE}}"
+
+  validations:
+    vpc_peering:
+      step: query_vpc_peering
+      checks:
+        VpcPeeringCheck: {}
