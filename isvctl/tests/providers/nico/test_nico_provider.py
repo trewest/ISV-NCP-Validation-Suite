@@ -922,6 +922,9 @@ def test_nico_vpc_inventory_scripts_normalize_vpc_inventory(
     assert list_payload["count"] == 1
     assert list_payload["found_target"] is True
     assert list_payload["vpcs"] == [{"vpc_id": "vpc-1", "vpc_name": "tenant-a", "description": "lab network"}]
+    assert list_payload["tests"]["list_vpcs"]["passed"] is True
+    assert list_payload["tests"]["found_target"]["passed"] is True
+    assert list_payload["tests"]["count_check"]["passed"] is True
     assert get_payload["success"] is True
     assert get_payload["vpc_id"] == "vpc-1"
     assert get_payload["vpc_name"] == "tenant-a"
@@ -957,6 +960,7 @@ def test_nico_list_vpcs_reports_a_missing_requested_vpc(
     payload = json.loads(capsys.readouterr().out)
     assert payload["target_vpc"] == "vpc-1"
     assert payload["found_target"] is False
+    assert payload["tests"]["found_target"]["passed"] is False
 
 
 def test_nico_get_vpc_skips_when_site_has_no_vpcs(

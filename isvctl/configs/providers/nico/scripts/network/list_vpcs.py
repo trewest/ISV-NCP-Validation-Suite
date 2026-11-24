@@ -46,6 +46,9 @@ def main() -> int:
         # With no target requested, listing the site's VPCs is the whole test.
         "target_vpc": args.vpc_id,
         "found_target": False,
+        # The canonical network suite has a legacy VpcListedCheck alongside
+        # the inventory composition. Keep both output contracts compatible.
+        "tests": {},
     }
 
     try:
@@ -65,6 +68,11 @@ def main() -> int:
         result["found_target"] = (
             any(vpc["vpc_id"] == args.vpc_id or vpc["vpc_name"] == args.vpc_id for vpc in vpcs) if args.vpc_id else True
         )
+        result["tests"] = {
+            "list_vpcs": {"passed": True, "message": f"Listed {len(vpcs)} VPC(s)"},
+            "found_target": {"passed": result["found_target"]},
+            "count_check": {"passed": bool(vpcs)},
+        }
         result["success"] = True
 
     except NicoAuthError as e:
