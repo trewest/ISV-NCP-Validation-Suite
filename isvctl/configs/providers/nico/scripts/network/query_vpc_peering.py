@@ -110,6 +110,11 @@ def _skip_tests(result: dict[str, Any], reason: str) -> None:
         _set_test(result, name, passed=False, message=reason, skipped=True)
 
 
+def _peering_disabled_error(exc: HTTPError) -> bool:
+    """Return whether NICo rejected peering because the site policy disables it."""
+    return "VPC peering is disabled at this site" in str(exc)
+
+
 def main() -> int:
     """Run the guarded disposable VPC peering lifecycle."""
     parser = argparse.ArgumentParser(description="Exercise NICo VPC peering with disposable VPCs")
@@ -230,6 +235,16 @@ def main() -> int:
         result["success"] = False
         result["error_type"] = "auth"
         result["error"] = str(exc)
+    except HTTPError as exc:
+        if _peering_disabled_error(exc):
+            reason = "VPC peering is disabled at this NICo site (site policy gap)"
+            result["success"] = True
+            result["skipped"] = True
+            result["skip_reason"] = reason
+            _skip_tests(result, reason)
+        else:
+            result["success"] = False
+            result["error"] = f"HTTPError: {exc}"
     except Exception as exc:
         result["success"] = False
         result["error"] = f"{type(exc).__name__}: {exc}"
