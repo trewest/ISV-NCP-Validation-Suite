@@ -47,4 +47,14 @@ tests:
     vpc_peering:
       step: query_vpc_peering
       checks:
-        VpcPeeringCheck: {}
+        VpcPeeringCheck:
+          # NICo programs peer prefixes automatically when the peering reaches
+          # Ready. Its public REST API has no route-table add/read operation,
+          # so retain add_routes as a structured step-output skip without
+          # blocking the lifecycle validation.
+          required_tests:
+            - create_vpc_a
+            - create_vpc_b
+            - create_peering
+            - accept_peering
+            - peering_active

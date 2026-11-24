@@ -48,7 +48,11 @@ def test_nico_vpc_peering_config_wires_sdn07_check() -> None:
     """SDN07-01 consumes the provider-neutral peering lifecycle output."""
     validation = _config()["tests"]["validations"]["vpc_peering"]
 
-    assert validation == {
-        "step": "query_vpc_peering",
-        "checks": {"VpcPeeringCheck": {}},
-    }
+    assert validation["step"] == "query_vpc_peering"
+    assert validation["checks"]["VpcPeeringCheck"]["required_tests"] == [
+        "create_vpc_a",
+        "create_vpc_b",
+        "create_peering",
+        "accept_peering",
+        "peering_active",
+    ]

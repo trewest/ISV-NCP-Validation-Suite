@@ -3799,7 +3799,7 @@ class VpcPeeringCheck(BaseValidation):
     description: ClassVar[str] = "Check VPC peering"
 
     def run(self) -> None:
-        required = [
+        all_tests = [
             "create_vpc_a",
             "create_vpc_b",
             "create_peering",
@@ -3807,10 +3807,24 @@ class VpcPeeringCheck(BaseValidation):
             "add_routes",
             "peering_active",
         ]
+        required = self.config.get("required_tests") or all_tests
         if not check_required_tests(self, required, "Peering tests failed"):
             return
 
         step_output = self.config.get("step_output", {})
         vpc_a = step_output.get("vpc_a", {}).get("id", "?")
         vpc_b = step_output.get("vpc_b", {}).get("id", "?")
-        self.set_passed(f"VPC peering active: {vpc_a} <-> {vpc_b}")
+        optional_skips = []
+        tests = step_output.get("tests", {})
+        for test_name in all_tests:
+            if test_name in required:
+                continue
+            test_result = tests.get(test_name, {})
+            if test_result.get("skipped"):
+                reason = test_result.get("skip_reason") or test_result.get("message") or "skipped"
+                optional_skips.append(f"{test_name}: {reason}")
+
+        message = f"VPC peering active: {vpc_a} <-> {vpc_b}"
+        if optional_skips:
+            message += f"; optional evidence skipped: {'; '.join(optional_skips)}"
+        self.set_passed(message)

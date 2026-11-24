@@ -1502,6 +1502,36 @@ class TestVpcPeeringCheck:
         assert "vpc-aaa" in result["output"]
         assert "vpc-bbb" in result["output"]
 
+    def test_provider_can_omit_unsupported_route_evidence(self) -> None:
+        tests = {
+            "create_vpc_a": {"passed": True},
+            "create_vpc_b": {"passed": True},
+            "create_peering": {"passed": True},
+            "accept_peering": {"passed": True},
+            "add_routes": {
+                "passed": False,
+                "skipped": True,
+                "skip_reason": "Provider has no route observation API",
+            },
+            "peering_active": {"passed": True},
+        }
+        config = _sdn_step_output(tests)
+        config["required_tests"] = [
+            "create_vpc_a",
+            "create_vpc_b",
+            "create_peering",
+            "accept_peering",
+            "peering_active",
+        ]
+        config["step_output"]["vpc_a"] = {"id": "vpc-aaa"}
+        config["step_output"]["vpc_b"] = {"id": "vpc-bbb"}
+
+        result = VpcPeeringCheck(config=config).execute()
+
+        assert result["passed"] is True
+        assert "vpc-aaa" in result["output"]
+        assert "vpc-bbb" in result["output"]
+
     def test_peering_failed(self) -> None:
         tests = {
             "create_vpc_a": {"passed": True},
