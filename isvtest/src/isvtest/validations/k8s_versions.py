@@ -76,6 +76,61 @@ class UpstreamCycle:
         return "" if self.latest_patch is None else _render_patch(self.latest_patch)
 
 
+class K8sClusterMinorVersionCheck(BaseValidation):
+    """Verify the running cluster is on a current upstream Kubernetes minor.
+
+    This check reads only the Kubernetes API server version and the upstream
+    release index. It works with kubectl-compatible clients such as ``oc`` and
+    does not require the platform to publish an offered-version catalogue.
+    """
+
+    description: ClassVar[str] = "Verify the cluster runs one of the three most recent upstream Kubernetes minors."
+
+    def run(self) -> None:
+        """Check the cluster's server minor against the upstream maintenance window."""
+        cycles = _upstream_cycles(self)
+        minor_count = self._parse_positive_int("supported_minor_count", default=DEFAULT_SUPPORTED_MINOR_COUNT)
+        if minor_count is None:
+            return
+
+        grace_days = self._parse_positive_int("availability_grace_days", default=DEFAULT_AVAILABILITY_GRACE_DAYS)
+        if grace_days is None:
+            return
+
+        server = _server_version(self)
+        if server is None:
+            return
+
+        server_minor = server[:2]
+        behind = next((index for index, cycle in enumerate(cycles) if cycle.minor == server_minor), None)
+        if behind is None:
+            self.set_failed(f"Cluster runs {_render_patch(server)}, a minor the upstream release index does not carry")
+            return
+
+        if behind < minor_count:
+            window = ", ".join(cycle.label for cycle in cycles[:minor_count])
+            self.set_passed(
+                f"Cluster runs {_render_patch(server)} within the {minor_count} most recent upstream minors ({window})"
+            )
+            return
+
+        displaced_by = cycles[behind - minor_count]
+        age = (datetime.now(UTC).date() - displaced_by.released).days if displaced_by.released else None
+        if age is not None and age <= grace_days:
+            self.set_passed(
+                f"Cluster runs {_render_patch(server)}, pushed out of the window {age} day(s) ago by "
+                f"{displaced_by.label} and still inside the {grace_days}-day window to move"
+            )
+            return
+
+        window = ", ".join(cycle.label for cycle in cycles[:minor_count])
+        since = "" if age is None else f" {age} day(s) ago"
+        self.set_failed(
+            f"Cluster runs {_render_patch(server)}, {behind} minor(s) behind upstream {cycles[0].label} and "
+            f"outside the {minor_count} most recent ({window}) since {displaced_by.label} released{since}"
+        )
+
+
 class K8sSupportedMinorVersionsCheck(BaseValidation):
     """Verify the provider offers the three most recent upstream Kubernetes minors.
 
