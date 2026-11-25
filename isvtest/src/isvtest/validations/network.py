@@ -1626,8 +1626,14 @@ class ImexServicePresenceCheck(BaseValidation):
 
     Step output:
         nodes: list of {node_id, in_nvlink_allocation, service_present,
-               control_tooling_present, service_registration, boot_disposition}
+               control_tooling_present, service_registration, service_running,
+               boot_disposition}
         nodes_checked / nodes_validated: counts carried for reporting
+
+    Optional config:
+        require_running: When true, also assert the service manager reports the
+            IMEX service as active. The default remains false because service
+            activation is outside the canonical SDN17-01 host-image contract.
     """
 
     description: ClassVar[str] = "Check IMEX service and tooling ship in the node image"
@@ -1657,6 +1663,7 @@ class ImexServicePresenceCheck(BaseValidation):
             return
 
         failures: list[str] = []
+        require_running = self.config.get("require_running", False)
         for node in in_scope:
             node_id = node["node_id"]
 
@@ -1678,6 +1685,8 @@ class ImexServicePresenceCheck(BaseValidation):
                 )
             elif registration != "loaded":
                 failures.append(f"{node_id}: service manager reports registration {registration!r}, expected 'loaded'")
+            if require_running and node.get("service_running") is not True:
+                failures.append(f"{node_id}: IMEX service is not active")
 
         if failures:
             self.set_failed(f"IMEX host-model checks failed on {len(failures)} count(s): {'; '.join(failures)}")

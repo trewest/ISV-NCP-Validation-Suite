@@ -1,0 +1,56 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+#
+# Licensed under the Apache License, Version 2.0 (the "License"); you may not use
+# this file except in compliance with the License. You may obtain a copy of the
+# License at
+#
+# http://www.apache.org/licenses/LICENSE-2.0
+
+# Opt-in, read-only NICo IMEX service smoke validation.
+#
+# Required when running the probe:
+#   NICO_IMEX_HOSTS              comma-separated SSH-reachable host addresses
+#   NICO_IMEX_SSH_KEY_FILE       private key accepted by those hosts
+#
+# Optional:
+#   NICO_IMEX_SSH_USER           defaults to ubuntu
+#
+# The probe only reads systemd state, IMEX binaries, and IMEX configuration
+# files. It does not start, stop, or modify the IMEX service.
+
+import:
+  - ../../../suites/network.yaml
+
+version: "1.0"
+
+commands:
+  bare_metal:
+    phases: ["test"]
+    steps:
+      - name: imex_service
+        phase: test
+        continue_on_failure: true
+        command: "python3 ../scripts/network/imex_service.py"
+        args:
+          - "--node-ids={{imex_hosts}}"
+          - "--key-file={{imex_ssh_key_file}}"
+          - "--ssh-user={{imex_ssh_user}}"
+        timeout: 180
+
+tests:
+  capability: bare_metal
+  cluster_name: "nico-nvl72-imex-service"
+  description: "NICo NVL72 read-only IMEX service presence validation"
+
+  settings:
+    imex_hosts: "{{env.NICO_IMEX_HOSTS | default('', true)}}"
+    imex_ssh_key_file: "{{env.NICO_IMEX_SSH_KEY_FILE | default(env.NVL72_SSH_KEY_FILE, true)}}"
+    imex_ssh_user: "{{env.NICO_IMEX_SSH_USER | default('ubuntu', true)}}"
+
+  validations:
+    fabric_topology:
+      checks:
+        ImexServicePresenceCheck:
+          step: imex_service
+          require_running: true

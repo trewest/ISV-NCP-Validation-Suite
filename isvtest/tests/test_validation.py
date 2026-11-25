@@ -2252,6 +2252,35 @@ class TestImexServicePresenceCheck:
         assert result["passed"] is True
         assert "boot disposition" in result["output"]
 
+    def test_require_running_asserts_active_service_when_requested(self) -> None:
+        """The opt-in smoke mode fails when the registered service is stopped."""
+        nodes = [
+            _imex_service_node("node-a"),
+            _imex_service_node("node-b"),
+        ]
+        nodes[0]["service_running"] = True
+        nodes[1]["service_running"] = False
+        config = _imex_service_output(nodes)
+        config["require_running"] = True
+
+        result = ImexServicePresenceCheck(config=config).execute()
+
+        assert result["passed"] is False
+        assert "node-b" in result["error"]
+        assert "not active" in result["error"]
+
+    def test_require_running_passes_for_active_services(self) -> None:
+        """The opt-in smoke mode passes when every in-scope service is active."""
+        nodes = [_imex_service_node("node-a"), _imex_service_node("node-b")]
+        for node in nodes:
+            node["service_running"] = True
+        config = _imex_service_output(nodes)
+        config["require_running"] = True
+
+        result = ImexServicePresenceCheck(config=config).execute()
+
+        assert result["passed"] is True
+
     def test_malformed_nodes_rejected(self) -> None:
         """A non-list `nodes` value is rejected rather than raising."""
         v = ImexServicePresenceCheck(config={"step_output": {"nodes": "oops"}})
